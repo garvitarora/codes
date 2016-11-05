@@ -1,0 +1,91 @@
+data<-read.csv("C:/Users/garvit.arora/Desktop/sampledata.csv")
+  
+data$new_col1<- ifelse(data$dental_claims_freq_yearly>0, "dental", "")
+data$new_col2<- ifelse(data$vision_claims_freq_yearly>0,"vison","")
+data$new_col3<- ifelse(data$Drugs_claims_freq_yearly>0,"drugs","")
+data$new_col4<- ifelse(data$others_claims_freq_yearly>0,"others","")
+data$new_col5<- ifelse(data$Mental_Health_claims_freq_yearly>0,"mental","")
+data$new_col6<- ifelse(data$Physical_Health_claims_freq_yearly>0,"physical","")
+data$new_col7<- ifelse(data$disability_freq>0,"disability","")
+data$bucket_claim_type<-paste(data$new_col1,
+                                                             data$new_col2,
+                                                             data$new_col3,
+                                                             data$new_col4,
+                                                             data$new_col5,
+                                                             data$new_col6,
+                                                             data$new_col7)
+
+
+trim.strings <- function(x, side = "both") { 
+  if (is.na(match(side, c("both", "leading", "trailing")))) { 
+    side <- "both" 
+  } 
+  if (side == "leading") { 
+    sub("^\\s+", "", x)
+  } else {
+    if (side == "trailing") {
+      sub("\\s+$", "", x)
+    } else gsub("^\\s+|\\s+$", "", x)
+  } 
+} 
+
+data$bucket_claim_type<-trim.strings(data$bucket_claim_type)
+data$bucket_claim_type<-gsub("\\s+"," ",data$bucket_claim_type)
+data$bucket_claim_type<-gsub(" ",",",data$bucket_claim_type)
+
+data$new_col1<-NULL
+data$new_col2<-NULL
+data$new_col3<-NULL
+data$new_col4<-NULL
+data$new_col5<-NULL
+data$new_col6<-NULL
+data$new_col7<-NULL
+
+A<-as.data.frame(unique(data $bucket_claim_type))
+A<-as.data.frame(lapply(A,as.character),stringsAsFactors = FALSE)
+
+for (i in 1:nrow(A))
+{
+  B<-subset(data,data$bucket_claim_type==A[i,1])
+  B[B==0]<-NA
+  
+  M1<-as.data.frame(colMeans(B[,c("dental_claims_amount_submitted_yearly","vision_claims_amount_submitted_yearly","Drugs_claims_amount_submitted_yearly","others_claims_amount_submitted_yearly","Mental_Health_claims_amount_submitted_yearly","Physical_Health_claims_amount_submitted_yearly","disability_total_amount")]))
+  M2<-as.data.frame(t(M1))
+  
+  if(i ==1)
+  {final_table<-M2}
+  if(i!=1)
+  {final_table<-rbind(final_table,M2)
+   }
+  
+}
+
+G<-c("dental_claims_amount_submitted_yearly","vision_claims_amount_submitted_yearly","Drugs_claims_amount_submitted_yearly","others_claims_amount_submitted_yearly","Mental_Health_claims_amount_submitted_yearly","Physical_Health_claims_amount_submitted_yearly","disability_total_amount")
+G<-as.data.frame(G)
+G<-as.data.frame(lapply(G,as.character),stringsAsFactors = FALSE)
+
+G1<-c("dental","vision","drug","others","mental","physical","disability")
+G1<-as.data.frame(G1)
+G1<-as.data.frame(lapply(G1,as.character),stringsAsFactors = FALSE)
+
+for(i in 1:6)
+
+  {
+  data_1<-data
+  data_1[data_1==0]<-NA
+  ApplyQuintiles <- function(x) 
+    {
+    i=1
+    cut(x, breaks=c(quantile(data_1[,c(G[i,1])], probs = c(0.0,0.25,0.75,1), na.rm=TRUE)), 
+        labels=c("low","mid","high"), include.lowest=TRUE)
+  }
+  
+  
+  final_table$decile<- sapply(final_table[,c(G[i,1])], ApplyQuintiles)
+  a<-ncol(final_table)
+  colnames(final_table)[a]<-paste(G1[i,1],"decile",sep="_")
+  
+  
+}
+
+write.csv(final_table,"C:/Users/garvit.arora/Desktop/sampledata_with_decile.csv")
