@@ -1,0 +1,31 @@
+Data<-read.csv("C:/Users/garvit.arora/Desktop/sampledata.csv")
+
+Data[Data==0]<-NA
+  
+A<-c("dental_claims_amount_submitted_yearly","vision_claims_amount_submitted_yearly","Drugs_claims_amount_submitted_yearly","others_claims_amount_submitted_yearly","Mental_Health_claims_amount_submitted_yearly","Physical_Health_claims_amount_submitted_yearly","disability_total_amount")
+A<-as.data.frame(A)
+A<-as.data.frame(lapply(A,as.character),stringsAsFactors = FALSE)
+
+A1<-c("dental","vision","drug","others","mental","physical","disability")
+A1<-as.data.frame(A1)
+A1<-as.data.frame(lapply(A1,as.character),stringsAsFactors = FALSE)
+
+for(i in 1:7)
+{
+  B<-c(quantile(Data[,c(A[i,1])], probs = seq(0, 1, by = 0.10), na.rm=TRUE))
+  B<-as.data.frame(B)
+  B<-as.data.frame(t(B))
+  B1<-nrow(B)-1
+  label_final<-c(1:B1)
+  label_final<-as.character(label_final)
+  ApplyQuintiles <- function(x) {
+    cut(x, breaks=B, 
+        labels=label_final, include.lowest=TRUE)
+  }
+  
+  Data$decile<- sapply(Data[,c(A[i,1])], ApplyQuintiles)
+  a<-ncol(Data)
+  colnames(Data)[a]<-paste(A1[i,1],"decile",sep="_")
+
+  
+}
