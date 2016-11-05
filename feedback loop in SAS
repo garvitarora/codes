@@ -1,0 +1,2017 @@
+
+/*================================================================================================================================
+INITIATION OF FEED BACK LOOP
+================================================================================================================================*/
+/*====================================================Code Synopsis==========================================================
+This block of code imports records from already reviewed files in the specific directory.The imported records consist of 
+records which should be mapped to brand_nm_cur and suggested_brand.The records are further split into correct and incorrect predictions
+which are fed into correct_repository and incorrect_repository respectively. Records in incorrect_repository would be used to incorporate
+changes in business rules engine.
+*==================================================END OF CODE SYNOPSIS=======================================================*/
+proc datasets lib=work kill;
+run;
+%let loc_imp=/DATA/MRM_VAL-NOBKUP/rkrish2/DDF/;/*This needs to be a duplicate of repository, files would be deleted from here post importing*/
+%let extention=xlsx;
+%let loc_exp=/DATA/MRM_VAL-NOBKUP/rkrish2/;
+libname rk "/DATA/MRM_VAL-NOBKUP/rkrish2/"; /*permanent SAS library to store correct and incorrect repository*/
+/*1 for running the code where records from rec_highprob_brandnmcur, rec_highprob_suggestedbrand and records_to_review tab will be reviewed*/
+/*2 for running the code where records form records_to_review tab only are reviewed*/
+%let code_type=1;
+/*number of days which will be considered for calculating average accuracy*/
+%let days_data=20;
+/*desired accuracy*/
+%let des_acc=96;
+%let date=%sysfunc(putn(%sysfunc(today()),yymmddn8.));
+/*%macro code_selection;*/
+/*%if &code_type.=2 %then %do;*/
+/*%put &code_type.;*/
+/*%end;*/
+/*%if &code_type.=1 %then %do;*/
+/*data gar;*/
+/*set g7;*/
+/*run;*/
+/*%end;*/
+/*%mend code_selection;*/
+/*%code_selection;*/
+/*gives the list of files in a particular directory*/
+%macro drive(dir,ext); 
+%local filrf rc did memcnt name i; 
+/* Assigns a fileref to the directory and opens the directory */ 
+%let rc=%sysfunc(filename(filrf,&dir)); 
+%let did=%sysfunc(dopen(&filrf)); 
+/* Make sure directory can be open */ 
+%if &did eq 0 %then %do; 
+%put Directory &dir cannot be open or does not exist; 
+%return; 
+%end; 
+/* Loops through entire directory */ 
+%do i = 1 %to %sysfunc(dnum(&did)); 
+/* Retrieve name of each file */ 
+%let name=%qsysfunc(dread(&did,&i)); 
+/* Checks to see if the extension matches the parameter value */ 
+/* If condition is true print the full name to the log */ 
+%if %qupcase(%qscan(&name,-1,.)) = %upcase(&ext) %then %do;
+%if %sysfunc (exist(DDF_files)) %then %do;
+data test2;
+format file_name $50.;
+file_name="&name.";
+run;
+data DDF_files;
+set DDF_files test2;
+run;
+proc delete data=test2;
+run;
+%end;
+%else %do;
+data DDF_files;
+format file_name $50.;
+file_name="&name.";
+run;
+%end; 
+%end; 
+/* If directory name call macro again */ 
+%else %if %qscan(&name,2,.) = %then %do; 
+%drive(&dir\%unquote(&name),&ext) 
+%end; 
+%end; 
+/* Closes the directory and clear the fileref */ 
+%let rc=%sysfunc(dclose(&did)); 
+%let rc=%sysfunc(filename(filrf)); 
+%mend drive; 
+proc delete data=DDF_files;
+run;
+/* First parameter is the directory of where your files are stored. */ 
+/* Second parameter is the extension you are looking for. */ 
+%drive(&loc_imp.,&extention.); 
+/*proc datasets lib=work kill;run;*/
+%macro permanent_table;
+%if %sysfunc(exist(rk.DDF_permanent)) %then %do;
+proc sql;
+create table DDF_interim as
+select a.*,b.flag as flag from DDF_Files a
+left join rk.DDF_permanent b on a.file_name=b.file_name;
+run;
+data DDF_Files_v2;
+set DDF_interim;
+if flag ne '1';
+drop flag;
+run;
+data DDF_files_v2;
+set DDF_files_v2;
+flag=1;
+run;
+data rk.DDF_permanent;
+set rk.DDF_permanent DDF_files_v2;
+run;
+data DDF_files_v2;
+set DDF_files_v2;
+drop flag;
+run;
+%end;
+%else %do;
+data rk.DDF_permanent;
+set DDF_files;
+flag=1;
+run;
+data DDF_files_v2;
+set DDF_files;
+run;
+%end;
+%mend permanent_table;
+proc delete data=DDF_files_v2;run;
+proc delete data=DDF_interim;run;
+%permanent_table;
+/*%let var=DDF_Dec.xlsx;*/
+%macro accuracy(var=);
+proc delete data=bnc;
+proc delete data=sb;
+proc import out=sb datafile="&loc_imp.&var." dbms=xlsx;
+/*proc import out=sb datafile="&loc_imp.DDF_dec.xlsx" dbms=xlsx;*/
+sheet=REC_HIGHPROB_SUGGESTEDBRAND;
+getnames=YES;
+run;
+data sb (rename=(mrch_brnd_id1 =mrch_brnd_id date_completed1=date_completed worked_by1=worked_by));
+set sb;
+mrch_brnd_id1=mrch_brnd_id+0.0;
+date_completed1=date_completed+0.0;
+worked_by1=worked_by+0.0;
+drop mrch_brnd_id date_completed worked_by;
+col_name=catt(suggested_brand,brnd_nm_cur,mrch_nm,alt_mrch_nm);
+run;
+data sb;
+retain mid clo_ind mrch_sub_brnd_id mrch_sub_brnd_nm mrch_brnd_id suggested_brand action_2 comments mrch_corp_id mrch_corp_nm mrch_cglm_id
+mrch_cglm_nm brnd_rl_fzy_final record_type sub_brand_change trnsfrm_dt min brnd_id_cur brnd_nm_cur brnd_rl_cur brnd_id_exp brnd_nm_exp
+brnd_rl_exp eff_dt_cur eff_dt_exp exp_dt_cur exp_dt_exp bus_ovrrd_ind_mp_cur bus_ovrrd_ind_msb_cur bus_ovrrd_ind_mb_cur bus_ovrrd_ind_mp_exp
+bus_ovrrd_ind_msb_exp bus_ovrrd_ind_mb_exp mrch_nm alt_mrch_nm final_score final_brand_src fuzzy_match lst_stlmt_dt lst_auth_dt lst_aprv_auth_dt
+open_dt clse_dt adr_ln_1_txt adr_ln_2_txt adr_ln_3_txt cty_nm pstl_cde st_or_sectn_cde cntry_cde date_completed worked_by prob_suggested_brand pred_suggested_brand;
+set sb;
+run;
+/*importing highprob_suggestedbrand sheet from excel file*/
+proc import out=bnc datafile="&loc_imp.&var." dbms=xlsx;
+/*proc import out=bnc datafile="&loc_imp.DDF_dec.xlsx" dbms=xlsx;*/
+sheet=REC_HIGHPROB_BRNDNMCUR;
+getnames=YES;
+run;
+data bnc (rename=(mrch_brnd_id1 =mrch_brnd_id date_completed1=date_completed worked_by1=worked_by));
+set bnc;
+mrch_brnd_id1=mrch_brnd_id+0.0;
+date_completed1=date_completed+0.0;
+worked_by1=worked_by+0.0;
+drop mrch_brnd_id date_completed worked_by;
+col_name=catt(suggested_brand,brnd_nm_cur,mrch_nm,alt_mrch_nm);
+run;
+data bnc;
+retain mid clo_ind mrch_sub_brnd_id mrch_sub_brnd_nm mrch_brnd_id suggested_brand action_2 comments mrch_corp_id mrch_corp_nm mrch_cglm_id
+mrch_cglm_nm brnd_rl_fzy_final record_type sub_brand_change trnsfrm_dt min brnd_id_cur brnd_nm_cur brnd_rl_cur brnd_id_exp brnd_nm_exp
+brnd_rl_exp eff_dt_cur eff_dt_exp exp_dt_cur exp_dt_exp bus_ovrrd_ind_mp_cur bus_ovrrd_ind_msb_cur bus_ovrrd_ind_mb_cur bus_ovrrd_ind_mp_exp
+bus_ovrrd_ind_msb_exp bus_ovrrd_ind_mb_exp mrch_nm alt_mrch_nm final_score final_brand_src fuzzy_match lst_stlmt_dt lst_auth_dt lst_aprv_auth_dt
+open_dt clse_dt adr_ln_1_txt adr_ln_2_txt adr_ln_3_txt cty_nm pstl_cde st_or_sectn_cde cntry_cde date_completed worked_by prob_suggested_brand pred_suggested_brand;
+set bnc;
+run;
+data correct_bnc;
+set bnc;
+if action_2='NC';
+run;
+data incorrect_bnc;
+set bnc;
+if action_2='M';
+run;
+data correct_sb;
+set sb;
+if action_2='M';
+run;
+data incorrect_sb;
+set sb;
+if action_2='NC';
+run;
+data temp_correct;
+set correct_bnc correct_sb;
+value=1;
+col_catt=catt(suggested_brand,brnd_nm_cur,mrch_nm,alt_mrch_nm);
+run;
+data temp_incorrect;
+set incorrect_bnc incorrect_sb;
+col_catt=catt(suggested_brand,brnd_nm_cur,mrch_nm,alt_mrch_nm);
+value=0;
+/*comment it out in case accuracy should be checked without de duplications*/
+proc sort data=temp_correct out=temp_correct_v2 nodupkey;
+by col_catt;run;
+proc sort data=temp_incorrect out=temp_incorrect_v2 nodupkey;
+by col_catt;run;
+/*end of (in case)commented code*/
+/*comment this one out in case accuract shoulh be check with de duplication*/
+/*data temp_correct_v2;*/
+/*set temp_correct;*/
+/*run;*/
+/*data temp_incorrect_v2;*/
+/*set temp_incorrect;*/
+/*run;*/
+/*end of (in case)commented code*/
+data temp_acc;
+set temp_correct_v2 temp_incorrect_v2;
+run;
+proc sql;
+create table temp_acc2 as select distinct value,count(*) as frequency from temp_acc group by 1; 
+run;
+proc sort data=temp_acc2 out=temp_acc2;
+by value;
+run;
+proc transpose data=temp_acc2 out=temp_acc3;
+run;
+data temp_acc3;
+set temp_acc3;
+rename _name_=name COL1=wrong Col2=right;
+run;
+data temp_acc4;
+set temp_acc3;
+if name='frequency';
+drop name;
+run;
+data temp_acc4;
+set temp_acc4;
+date=&date.;
+accuracy=right/(wrong+right)*100;
+run;
+/* data temp_acc4;*/
+/* set temp_acc4;*/
+/* right=1111;*/
+/* accuracy=right/(wrong+right)*100;*/
+/* run;*/
+%if %sysfunc(exist(rk.frequency_table)) %then %do;
+data rk.frequency_table;
+set rk.frequency_table temp_acc4;
+run;
+%end;
+%else %do;
+data rk.frequency_table;
+set temp_acc4;
+run;
+%end;
+proc sort data=rk.frequency_table out=rk.frequency_table;
+by date;
+run;
+proc means data=rk.frequency_table mean;
+var accuracy;
+output out=temp2 mean=avg_acc n=rows;
+run;
+%mend accuracy;
+　
+/*The macro imports different sheets from the file and splits the records into correct and incorrect predictions. Two permanent repositories
+are made at the end.*/
+%macro import_mac1(var=);
+proc delete data=bnc;
+proc delete data=sb;
+proc delete data=incorrect_bnc;
+proc delete data=incorrect_sb;
+proc delete data=correct_bnc;
+proc delete data=correct_sb;
+proc delete data=rtr;
+/*importing records_to_review sheet from excel file*/
+/*proc import out=rtr datafile="&loc_imp.&var." dbms=xlsx;*/
+proc import out=rtr datafile="&loc_imp.DDF_dec.xlsx" dbms=xlsx;
+sheet=RECORDS_TO_REVIEW;
+getnames=YES;
+run;
+data rtr;
+set rtr;
+bnc=brnd_nm_cur;
+if bnc='UNKNOWN' then bnc='';
+if bnc='REGIONAL SALES' then bnc='';
+run;
+data rtr;
+set rtr;
+if bnc ne ''; 
+drop bnc;
+run;
+data rtr (rename=(mrch_brnd_id1 =mrch_brnd_id date_completed1=date_completed worked_by1=worked_by));
+set rtr;
+mrch_brnd_id1=mrch_brnd_id+0.0;
+date_completed1=date_completed+0.0;
+worked_by1=worked_by+0.0;
+drop mrch_brnd_id date_completed worked_by;
+col_name=catt(suggested_brand,brnd_nm_cur,mrch_nm,alt_mrch_nm);
+run;
+data rtr;
+retain mid clo_ind mrch_sub_brnd_id mrch_sub_brnd_nm mrch_brnd_id suggested_brand action_2 comments mrch_corp_id mrch_corp_nm mrch_cglm_id
+mrch_cglm_nm brnd_rl_fzy_final record_type sub_brand_change trnsfrm_dt min brnd_id_cur brnd_nm_cur brnd_rl_cur brnd_id_exp brnd_nm_exp
+brnd_rl_exp eff_dt_cur eff_dt_exp exp_dt_cur exp_dt_exp bus_ovrrd_ind_mp_cur bus_ovrrd_ind_msb_cur bus_ovrrd_ind_mb_cur bus_ovrrd_ind_mp_exp
+bus_ovrrd_ind_msb_exp bus_ovrrd_ind_mb_exp mrch_nm alt_mrch_nm final_score final_brand_src fuzzy_match lst_stlmt_dt lst_auth_dt lst_aprv_auth_dt
+open_dt clse_dt adr_ln_1_txt adr_ln_2_txt adr_ln_3_txt cty_nm pstl_cde st_or_sectn_cde cntry_cde date_completed worked_by prob_suggested_brand pred_suggested_brand;
+set rtr;
+run;
+/*importing highprob_suggestedbrand sheet from excel file*/
+/*proc import out=sb datafile="&loc_imp.&var." dbms=xlsx;*/
+proc import out=sb datafile="&loc_imp.DDF_dec.xlsx" dbms=xlsx;
+sheet=REC_HIGHPROB_SUGGESTEDBRAND;
+getnames=YES;
+run;
+data sb (rename=(mrch_brnd_id1 =mrch_brnd_id date_completed1=date_completed worked_by1=worked_by));
+set sb;
+mrch_brnd_id1=mrch_brnd_id+0.0;
+date_completed1=date_completed+0.0;
+worked_by1=worked_by+0.0;
+drop mrch_brnd_id date_completed worked_by;
+col_name=catt(suggested_brand,brnd_nm_cur,mrch_nm,alt_mrch_nm);
+run;
+data sb;
+retain mid clo_ind mrch_sub_brnd_id mrch_sub_brnd_nm mrch_brnd_id suggested_brand action_2 comments mrch_corp_id mrch_corp_nm mrch_cglm_id
+mrch_cglm_nm brnd_rl_fzy_final record_type sub_brand_change trnsfrm_dt min brnd_id_cur brnd_nm_cur brnd_rl_cur brnd_id_exp brnd_nm_exp
+brnd_rl_exp eff_dt_cur eff_dt_exp exp_dt_cur exp_dt_exp bus_ovrrd_ind_mp_cur bus_ovrrd_ind_msb_cur bus_ovrrd_ind_mb_cur bus_ovrrd_ind_mp_exp
+bus_ovrrd_ind_msb_exp bus_ovrrd_ind_mb_exp mrch_nm alt_mrch_nm final_score final_brand_src fuzzy_match lst_stlmt_dt lst_auth_dt lst_aprv_auth_dt
+open_dt clse_dt adr_ln_1_txt adr_ln_2_txt adr_ln_3_txt cty_nm pstl_cde st_or_sectn_cde cntry_cde date_completed worked_by prob_suggested_brand pred_suggested_brand;
+set sb;
+run;
+/*importing highprob_suggestedbrand sheet from excel file*/
+/*proc import out=bnc datafile="&loc_imp.&var." dbms=xlsx;*/
+proc import out=bnc datafile="&loc_imp.DDF_dec.xlsx" dbms=xlsx;
+sheet=REC_HIGHPROB_BRNDNMCUR;
+getnames=YES;
+run;
+data bnc (rename=(mrch_brnd_id1 =mrch_brnd_id date_completed1=date_completed worked_by1=worked_by));
+set bnc;
+mrch_brnd_id1=mrch_brnd_id+0.0;
+date_completed1=date_completed+0.0;
+worked_by1=worked_by+0.0;
+drop mrch_brnd_id date_completed worked_by;
+col_name=catt(suggested_brand,brnd_nm_cur,mrch_nm,alt_mrch_nm);
+run;
+data bnc;
+retain mid clo_ind mrch_sub_brnd_id mrch_sub_brnd_nm mrch_brnd_id suggested_brand action_2 comments mrch_corp_id mrch_corp_nm mrch_cglm_id
+mrch_cglm_nm brnd_rl_fzy_final record_type sub_brand_change trnsfrm_dt min brnd_id_cur brnd_nm_cur brnd_rl_cur brnd_id_exp brnd_nm_exp
+brnd_rl_exp eff_dt_cur eff_dt_exp exp_dt_cur exp_dt_exp bus_ovrrd_ind_mp_cur bus_ovrrd_ind_msb_cur bus_ovrrd_ind_mb_cur bus_ovrrd_ind_mp_exp
+bus_ovrrd_ind_msb_exp bus_ovrrd_ind_mb_exp mrch_nm alt_mrch_nm final_score final_brand_src fuzzy_match lst_stlmt_dt lst_auth_dt lst_aprv_auth_dt
+open_dt clse_dt adr_ln_1_txt adr_ln_2_txt adr_ln_3_txt cty_nm pstl_cde st_or_sectn_cde cntry_cde date_completed worked_by prob_suggested_brand pred_suggested_brand;
+set bnc;
+run;
+/*subsetting the predictions into correct and incorrect*/
+data correct_bnc;
+set bnc;
+if action_2='NC';
+run;
+data incorrect_bnc;
+set bnc;
+if action_2='M';
+run;
+data correct_sb;
+set sb;
+if action_2='M';
+run;
+data incorrect_sb;
+set sb;
+if action_2='NC';
+run;
+/*changing the columns to desired format*/
+data correct_sb;
+set correct_sb;
+format suggested_brand $50. brnd_nm_cur $50. alt_mrch_nm $50. mrch_nm $50. action_2 $2.;
+run;
+data correct_bnc;
+set correct_bnc;
+format suggested_brand $50. brnd_nm_cur $50. alt_mrch_nm $50. mrch_nm $50. action_2 $2.;
+run;
+data incorrect_sb;
+set incorrect_sb;
+format suggested_brand $50. brnd_nm_cur $50. alt_mrch_nm $50. mrch_nm $50. action_2 $2.;
+run;
+data incorrect_bnc;
+set incorrect_bnc;
+format suggested_brand $50. brnd_nm_cur $50. alt_mrch_nm $50. mrch_nm $50. action_2 $2.;
+run;
+　
+%if %sysfunc (exist(rk.correct_repository)) %then %do;
+data rk.correct_repository;
+set rk.correct_repository correct_bnc correct_sb;
+run;
+%end;
+%else %do;
+data rk.correct_repository;
+set correct_bnc correct_sb;
+run;
+%end;
+%if %sysfunc (exist(incorrect_predictions)) %then %do;
+data incorrect_predictions;
+set incorrect_predictions incorrect_bnc incorrect_sb rtr;
+run;
+%end;
+%else %do;
+data incorrect_predictions;
+set incorrect_sb incorrect_bnc rtr;
+run;
+%end;
+/*filename myfile "&loc_imp.&var.";*/
+/*data _null_;*/
+/*fd=fdelete("myfile");*/
+/*run;*/
+%mend import_mac1;
+　
+%macro import_mac2(var=);
+proc delete data=bnc;
+proc delete data=sb;
+proc delete data=incorrect_bnc;
+proc delete data=incorrect_sb;
+proc delete data=correct_bnc;
+proc delete data=correct_sb;
+proc delete data=rtr;
+/*proc import out=rtr datafile="&loc_imp.&var." dbms=xlsx;*/
+proc import out=rtr datafile="&loc_imp.DDF_dec.xlsx" dbms=xlsx;
+sheet=RECORDS_TO_REVIEW;
+getnames=YES;
+run;
+data rtr;
+set rtr;
+bnc=brnd_nm_cur;
+if bnc='UNKNOWN' then bnc='';
+if bnc='REGIONAL SALES' then bnc='';
+run;
+data rtr;
+set rtr;
+if bnc ne ''; 
+drop bnc;
+run;
+data rtr (rename=(mrch_brnd_id1 =mrch_brnd_id date_completed1=date_completed worked_by1=worked_by));
+set rtr;
+mrch_brnd_id1=mrch_brnd_id+0.0;
+date_completed1=date_completed+0.0;
+worked_by1=worked_by+0.0;
+drop mrch_brnd_id date_completed worked_by;
+col_name=catt(suggested_brand,brnd_nm_cur,mrch_nm,alt_mrch_nm);
+run;
+data rtr;
+retain mid clo_ind mrch_sub_brnd_id mrch_sub_brnd_nm mrch_brnd_id suggested_brand action_2 comments mrch_corp_id mrch_corp_nm mrch_cglm_id
+mrch_cglm_nm brnd_rl_fzy_final record_type sub_brand_change trnsfrm_dt min brnd_id_cur brnd_nm_cur brnd_rl_cur brnd_id_exp brnd_nm_exp
+brnd_rl_exp eff_dt_cur eff_dt_exp exp_dt_cur exp_dt_exp bus_ovrrd_ind_mp_cur bus_ovrrd_ind_msb_cur bus_ovrrd_ind_mb_cur bus_ovrrd_ind_mp_exp
+bus_ovrrd_ind_msb_exp bus_ovrrd_ind_mb_exp mrch_nm alt_mrch_nm final_score final_brand_src fuzzy_match lst_stlmt_dt lst_auth_dt lst_aprv_auth_dt
+open_dt clse_dt adr_ln_1_txt adr_ln_2_txt adr_ln_3_txt cty_nm pstl_cde st_or_sectn_cde cntry_cde date_completed worked_by prob_suggested_brand pred_suggested_brand;
+set rtr;
+run;
+/*importing highprob_suggestedbrand sheet from excel file*/
+/*proc import out=sb datafile="&loc_imp.&var." dbms=xlsx;*/
+proc import out=sb datafile="&loc_imp.DDF_dec.xlsx" dbms=xlsx;
+sheet=REC_HIGHPROB_SUGGESTEDBRAND;
+getnames=YES;
+run;
+data sb (rename=(mrch_brnd_id1 =mrch_brnd_id date_completed1=date_completed worked_by1=worked_by));
+set sb;
+mrch_brnd_id1=mrch_brnd_id+0.0;
+date_completed1=date_completed+0.0;
+worked_by1=worked_by+0.0;
+drop mrch_brnd_id date_completed worked_by;
+col_name=catt(suggested_brand,brnd_nm_cur,mrch_nm,alt_mrch_nm);
+run;
+data sb;
+retain mid clo_ind mrch_sub_brnd_id mrch_sub_brnd_nm mrch_brnd_id suggested_brand action_2 comments mrch_corp_id mrch_corp_nm mrch_cglm_id
+mrch_cglm_nm brnd_rl_fzy_final record_type sub_brand_change trnsfrm_dt min brnd_id_cur brnd_nm_cur brnd_rl_cur brnd_id_exp brnd_nm_exp
+brnd_rl_exp eff_dt_cur eff_dt_exp exp_dt_cur exp_dt_exp bus_ovrrd_ind_mp_cur bus_ovrrd_ind_msb_cur bus_ovrrd_ind_mb_cur bus_ovrrd_ind_mp_exp
+bus_ovrrd_ind_msb_exp bus_ovrrd_ind_mb_exp mrch_nm alt_mrch_nm final_score final_brand_src fuzzy_match lst_stlmt_dt lst_auth_dt lst_aprv_auth_dt
+open_dt clse_dt adr_ln_1_txt adr_ln_2_txt adr_ln_3_txt cty_nm pstl_cde st_or_sectn_cde cntry_cde date_completed worked_by prob_suggested_brand pred_suggested_brand;
+set sb;
+run;
+/*importing highprob_suggestedbrand sheet from excel file*/
+/*proc import out=bnc datafile="&loc_imp.&var." dbms=xlsx;*/
+proc import out=bnc datafile="&loc_imp.DDF_dec.xlsx" dbms=xlsx;
+sheet=REC_HIGHPROB_BRNDNMCUR;
+getnames=YES;
+run;
+data bnc (rename=(mrch_brnd_id1 =mrch_brnd_id date_completed1=date_completed worked_by1=worked_by));
+set bnc;
+mrch_brnd_id1=mrch_brnd_id+0.0;
+date_completed1=date_completed+0.0;
+worked_by1=worked_by+0.0;
+drop mrch_brnd_id date_completed worked_by;
+col_name=catt(suggested_brand,brnd_nm_cur,mrch_nm,alt_mrch_nm);
+run;
+data bnc;
+retain mid clo_ind mrch_sub_brnd_id mrch_sub_brnd_nm mrch_brnd_id suggested_brand action_2 comments mrch_corp_id mrch_corp_nm mrch_cglm_id
+mrch_cglm_nm brnd_rl_fzy_final record_type sub_brand_change trnsfrm_dt min brnd_id_cur brnd_nm_cur brnd_rl_cur brnd_id_exp brnd_nm_exp
+brnd_rl_exp eff_dt_cur eff_dt_exp exp_dt_cur exp_dt_exp bus_ovrrd_ind_mp_cur bus_ovrrd_ind_msb_cur bus_ovrrd_ind_mb_cur bus_ovrrd_ind_mp_exp
+bus_ovrrd_ind_msb_exp bus_ovrrd_ind_mb_exp mrch_nm alt_mrch_nm final_score final_brand_src fuzzy_match lst_stlmt_dt lst_auth_dt lst_aprv_auth_dt
+open_dt clse_dt adr_ln_1_txt adr_ln_2_txt adr_ln_3_txt cty_nm pstl_cde st_or_sectn_cde cntry_cde date_completed worked_by prob_suggested_brand pred_suggested_brand;
+set bnc;
+run;
+data bnc;
+set bnc;
+format suggested_brand $50. brnd_nm_cur $50. alt_mrch_nm $50. mrch_nm $50. action_2 $2.;
+run;
+data sb;
+set sb;
+format suggested_brand $50. brnd_nm_cur $50. alt_mrch_nm $50. mrch_nm $50. action_2 $2.;
+run;
+data rtr;
+set rtr;
+format suggested_brand $50. brnd_nm_cur $50. alt_mrch_nm $50. mrch_nm $50. action_2 $2.;
+run;
+data rk.correct_repository;
+set rk.correct_repository bnc sb;
+run;
+%if %sysfunc (exist(incorrect_predictions)) %then %do;
+data incorrect_predictions;
+set incorrect_predictions rtr;
+run;
+%end;
+%else %do;
+data incorrect_predictions;
+set rtr;
+run;
+%end;
+%mend import_mac2;
+/*call the previous macros in a loop*/
+%macro collation_mac;
+data _null_;
+set DDF_files_v2;
+call symput(compress('variable'||_n_),file_name);
+call symput ('count',_n_);
+run;
+data _null_;
+set temp2;
+call symput ('avg',avg_acc);
+call symput('number',rows);
+run;
+%do i = 1 %to &count.;
+/*%accuracy(var=&&variable&i);*/
+%if &code_type.=1 %then %do;
+%if &days_data.<&number. %then %do;
+%if &avg.>&des_acc. %then %do;
+%import_mac2(var=&&variable&i);
+/* %put &days_data.;*/
+%end;
+%else %do;
+/* %put &avg;*/
+%import_mac1(var=&&variable&i);
+%end;
+%end;
+%if &days_data.>&number. %then %do;
+%import_mac1(var=&&variable&i);
+/* %put &number;*/
+%end;
+%end;
+%if &code_type.=2 %then %do;
+/*%put &des_acc.;*/
+%imprort_mac2(var=&&variable&i);
+%end;
+%end;
+%mend collation_mac;
+/*check if there are files in the specified folder*/
+%macro check;
+%if %sysfunc(exist(DDF_Files_v2))%then %do;
+/*Creation of repositories takes place */
+%collation_mac;
+%end;
+%else %do;
+data incorrect_predictions;
+format col_name $50. action_2 $50.;
+run;
+data incorrect_predictions;
+set incorrect_predictions;
+if col_name ne '';
+run;
+%end;
+%mend check;
+%check;
+data garvit;
+set temp2;
+/*set rk.frequency_table;*/
+/*set rk.incorrect_repository*/
+run;
+　
+　
+　
+　
+/*Create distinct set of records which would be used for flagging repetitions*/
+proc sql;
+create table temp_repository as 
+select distinct col_name,action_2,count(*) as frequency from incorrect_predictions 
+group by 1,2;
+run;
+%macro append;
+%if %sysfunc(exist(rk.incorrect_repository)) %then %do;
+data rk.incorrect_repository;
+set rk.incorrect_repository temp_repository;
+run;
+proc sql;
+create table rk.incorrect_repository as select distinct col_name,action_2,sum(frequency) as frequency from rk.incorrect_repository 
+group by 1,2;
+run;
+%end;
+%else %do;
+data rk.incorrect_repository;
+set temp_repository;
+run;
+%end;
+%mend;
+%append;
+　
+proc sort data=rk.incorrect_repository out=incorrect_repository;
+by col_name descending frequency;
+run;
+　
+proc sort data=incorrect_repository out=incorrect_repository_v2 nodupkey;
+by col_name;
+run;
+/*===============================================END OF FEED BACK LOOP============================================================*/
+/*================================================================================================================================
+START OF DDF PREDICTION CODE
+================================================================================================================================*/
+/*=================================BLOCK 1 DDF PRE PROCESSING================================================*/
+/*====================================Code Synopsis==========================================================*/
+/*This block of code takes its input from the final stage of DDF generation in the existing DDF SAS code. There
+are two new copies of existing columns created on which the comparators will be run . The fields populated
+with UNKNOWNS in the brnd_nm_cur are replaced by empty spaces in the new column on which the comparator 
+is to be run.
+/*================================END OF CODE SYNOPSIS=======================================================*/
+/*Start-Business rules engine from feedback loop*/
+data test;
+/*temp table from previous Discover SAS code*/
+set december_collated_ddf;
+column_name=catt(suggested_brand,brnd_nm_cur,mrch_nm,alt_mrch_nm);
+run;
+proc delete data=tablename;run;
+proc sql;
+create table tablename as 
+select a.*,b.action_2 as forced_decision from test a
+left join incorrect_repository_v2 b on a.column_name=b.col_name;
+run;
+data remaining_test;
+set tablename;
+if forced_decision='';
+drop forced_decision;
+run;
+data decided_test;
+set tablename;
+if forced_decision ne'';
+run;
+/*End-Business rules engine from feedback loop*/
+/*Create two new columns which are copies of brnd _nm_cur and suggested_brand*/
+data test;
+set remaining_test;
+format input_string1 $50.;
+format input_string2 $50.;
+input_string1=brnd_nm_cur;
+input_string2=suggested_brand;
+run;
+/*Replace unknowns in input_string1 by '' before running comparators*/
+data test;
+set test;
+if input_string1='UNKNOWN' then input_string1='';
+if input_string1='REGIONAL SALES' then input_string1='';
+if alt_mrch_nm='NA' then alt_mrch_nm='';
+run;
+/*================BLOCK 2- COMPARATORS BEING RUN ON THE DATASET ==============================*/
+/*====================================Code Synopsis=============================================*/
+/*This code creates independent variables that will be fed into the machine learning models.
+/*The independent variables are the 16 comparators. Comparator codes are run for input_string1 against mrch_nm and alt_mrch_nm 
+/*and for input_string2 against mrch_nm and alt_mrch_nm. Each combination will generate 4 comparators adding to a total of 16 
+/*comparator independent variables that will be fed into the machine learning models.
+/*================================END OF CODE SYNOPSIS==========================================*/
+/*copying the test data into new table where one set of comparator will be added */
+data outcomp1;
+set test;
+run;
+/*initialising the input string as the main column to run comparators against*/
+%let string1=input_string1;
+　
+/*creating macro of all comparators*/
+%macro comparator_mel(var=);
+/*monge elkan levenshtein*/
+data outcomp1;
+set outcomp1;
+if (&var="?")then &var='';
+/*declaring array*/
+array col1{20} $50; array col2{20} $50;
+array lev{400};
+array lev_sim{400};
+array lev_max{400};
+/*counting the words using space as a separator*/
+c1=countw(&string1,' ');
+c2=countw(&var,' ');
+length string1 $500;
+length string2 $500;
+/*declaring the shorter string as first string*/
+if(c1>c2)
+then do;
+string1=&var;
+string2=&string1;
+clong=c1;
+cshort=c2;
+end;
+else
+do;
+string1=&string1;
+string2=&var;
+clong=c2;
+cshort=c1;
+end;
+string1=lowcase(trim(compbl(string1)));
+string2=lowcase(trim(compbl(string2)));
+/*scanning the string to columns*/
+do i = 1 to cshort;
+col1[i]=scan(string1,i,' ');
+end;
+do i = 1 to clong;
+col2[i]=scan(string2,i,' '); 
+end;
+/*starting the loop to give levenshtein distance and inturn giving levenshtein similarity*/
+do i= 1 to cshort;
+p=1;q=1;
+do j=1 to clong;
+lev[p]=complev(col1[i],col2[j]);
+if(length(col1[i])>length(col2[j]))then lev_sim[q]=1-lev[p]/length(col1[i]);
+else lev_sim[q]=1-lev[p]/length(col2[j]);
+p=p+1;
+q=q+1;
+end;
+/*starting another loop to find the maximum levenshtien similarity for each token of first string against all the tokens of second string*/
+lev_max[i]=0;
+do k=1 to q-1;
+if (lev_sim[k]>=lev_max[i])then lev_max[i]=lev_sim[k];
+end;
+end;
+/*adding the max levenshtien similarity for each token in first string*/
+sum=0;
+do l=1 to cshort;
+sum=sum+lev_max[l];
+end;
+/*taking mean of the sum to calculate the mongeElkan levenshtein similarity*/
+monge_lev=sum/(cshort);
+rename monge_lev=&var._monge_lev;
+drop clong;drop cshort;drop p;drop q;drop i;drop j;drop k;drop l;drop sum;drop string1;drop string2;drop c1;drop c2;
+drop lev_max1-lev_max400;drop lev1-lev400;drop lev_sim1-lev_sim400;drop col11-col120;drop col21-col220;
+run;
+/*end monge elkan levenshtein*/
+%mend comparator_mel;
+　
+　
+　
+/*stating the desired columns*/
+data varnames;
+length var $50.;
+input var $;
+informat var $50.;
+format var $50.;
+datalines;
+mrch_nm
+alt_mrch_nm
+;
+run;
+/*storing the desired columns,required for running comparators,in variable*/
+data _null_;
+set varnames;
+call symput(compress('variable'||_n_),var);
+call symput ('count',_n_);
+run;
+/*creating macro which will intake one column at a time and run all the comparators*/
+%macro call_comp1;
+%do i = 1 %to &count;
+%comparator_mel(var=&&variable&i);
+%end;
+%mend;
+/*calling the macro created above*/
+%call_comp1;
+　
+　
+　
+　
+/*===================================Levenshtein Comparator being added to the dataset ==========================*/
+　
+　
+%macro comparator_l(var=);
+/*levenshtein similarity*/
+data outcomp1;
+set outcomp1;
+if (&var="?")then &var='';
+/*findind the length of both strings*/
+l1=length(&string1);
+l2=length(&var);
+string1=lowcase(&string1);
+string2=lowcase(&var);
+/*calculating the levenshtein distance and in turn levenshtien similiarity*/
+lev_dist=complev(string1,string2);
+levensim=1-(lev_dist/max(l1,l2));
+rename levensim=&var._levensim;
+drop l1;drop l2;drop lev_dist;drop string1 string2;
+run;
+data outcomp1;
+set outcomp1;
+if(&var='') then do;
+&var._levensim='';
+end;
+if(&string1='') then do;
+&var._levensim='';
+end;
+run;
+/*end levenshtein similarity*/
+　
+%mend comparator_l; 
+%macro call_comp2;
+%do i = 1 %to &count;
+%comparator_l(var=&&variable&i);
+%end;
+%mend;
+%call_comp2;
+　
+　
+　
+/*=========================Monge Elkan with Jarowinklercomparator being added to the dataset*/
+　
+%macro comparator_mej(var=);
+/*creating jarowink function*/
+proc fcmp outlib=work.jaro.chars;
+function jaromatch(string1 $, string2 $) $ 40;
+length matchChars $ 40;
+str1_len = lengthn(string1);
+str2_len = lengthn(string2);
+allowedDist = floor(max(str1_len, str2_len) / 2) - 1;
+*** walk through string1 and match characters to string2 ***;
+matchChars="";
+do i= 1 to str1_len;
+*** get the part of string2 to search ***;
+allowed_start = max(1, i - allowedDist); *** starting char position ***;
+allowed_str2 = substr(string2, allowed_start, i + allowedDist - allowed_start + 1);
+*** find i char from string1 in string2 within the allowedDist ***;
+position = findc(allowed_str2, substr(string1, i, 1));
+if position > 0 
+then do;
+matchChars = cats(matchChars, substr(allowed_str2, position, 1));
+*** Once a char is assigned, it can not be assigned again. So, chg char in string2. ***;
+substr(string2, allowed_start + position -1, 1) = '~';
+end;
+end;
+return(strip(matchChars));
+endsub;
+/* count the number of "half" transpositions */
+function jarotrans(string1 $, string2 $);
+ntrans = 0;
+do i = 1 to min(lengthn(strip(string1)), lengthn(strip(string2)));
+if substr(string1, i, 1) ne substr(string2, i, 1) then ntrans + 1;
+end;
+return(ntrans / 2);
+endsub;
+/* get the length of the matching characters at the beginning */
+function getPrefixlen(string1 $, string2 $, maxprelen);
+n = min(maxprelen, lengthn(string1), lengthn(string2));
+if n = 0
+then return(0);
+else do;
+do i = 1 to n;
+if substr(string1, i, 1) ne substr(string2, i, 1) 
+then return(i - 1);
+end;
+return(n); *** all maxprelen characters match ***;
+end;
+endsub;
+/* calc the jaro distance */
+function jarodist(string1 $, string2 $);
+*** get number of matched characters in string1 ***;
+m1 = jaromatch(string1, string2);
+m1_len = lengthn(m1);
+if m1_len = 0 then return(0);
+*** get number of matched characters in string2 ***;
+m2 = jaromatch(string2, string1);
+m2_len = lengthn(m2);
+if m2_len = 0 then return(0);
+*** get number of transposed characters ***;
+ntrans = jarotrans(m1, m2);
+*** calc jaro distance ***;
+j_dist = (m1_len / lengthn(string1) + m2_len / lengthn(string2) + (m1_len - ntrans) / m1_len) / 3;
+return(j_dist);
+endsub;
+/* calc the jaro-winkler distance */
+function jarowink(string1 $, string2 $, prefixscale);
+string1 = upcase(strip(string1));
+string2 = upcase(strip(string2));
+*** check for trivial case and calc JW if needed ***;
+if string1 = string2
+then return(1.0);
+else do;
+jarodist = jarodist(string1, string2);
+prelen = getPrefixlen(string1, string2, 4);
+return(jarodist + prelen * prefixscale * (1 - jarodist));
+end;
+endsub;
+run;
+/*end jarowink function*/
+　
+/*mongeElkanJaroWinkler*/
+/*defining the library where the funcion is stored*/
+option cmplib=work.jaro;
+data outcomp1;
+set outcomp1;
+array col1{20} $50; array col2{20} $50;array len1{20} ;array len2{20};
+array jarowink_sim{400};
+array jarowink_max{400};
+if (&var="?")then &var='';
+/*counting the number of words in string taking space as the separator*/
+c1=countw(&string1,' ');
+c2=countw(&var,' ');
+length string1 $500;
+length string2 $500;
+/*declaring shorter string as first string and longer as second*/
+if(c1>c2)
+then do;
+string1=&var;
+string2=&string1;
+clong=c1;
+cshort=c2;
+end;
+else
+do;
+string1=&string1;
+string2=&var;
+clong=c2;
+cshort=c1;
+end;
+string1=lowcase(trim(compbl(string1)));
+string2=lowcase(trim(compbl(string2)));
+/*scanning different tokens of each string into different columns*/
+do i = 1 to cshort;
+col1[i]=scan(string1,i,' ');
+len1[i]=length(col1[i]);
+end;
+do i = 1 to clong;
+col2[i]=scan(string2,i,' '); 
+len2[i]=length(col2[i]);
+end;
+/*starting the loop to give jarowinkler distance and inturn giving jarowinkler similarity*/
+do i= 1 to cshort;
+p=1;q=1;
+do j=1 to clong;
+jarowink_sim[p]=jarowink(col1[i],col2[j],0.1);
+p=p+1;
+q=q+1;
+end;
+/*starting another loop to find the maximum jarowinkler similarity for each token of first string against all the tokens of second string*/
+jarowink_max[i]=0;
+do k=1 to q-1;
+if (jarowink_sim[k]>=jarowink_max[i])then jarowink_max[i]=jarowink_sim[k];
+end;
+end;
+/*adding the max jarowinkler similarity of each token in first string*/
+sum=0;
+do l=1 to cshort;
+sum=sum+jarowink_max[l];
+end;
+/*taking mean of the sum to calculate the mongeElkan jarowinkler similarity*/
+monge_jaro=sum/(cshort);
+rename monge_jaro= &var._monge_jaro; 
+drop col11-col120;drop col21-col220;drop len11-len120;drop len21-len220;drop jarowink_sim1-jarowink_sim400;drop jarowink_max1-jarowink_max400;
+drop i;drop j;drop k;drop l;drop sum;drop p;drop q; drop clong;drop cshort;drop string1;drop string2; drop c1; drop c2;
+run;
+/*end mongeElkanJaroWinkler*/
+%mend comparator_mej;
+%macro call_comp3;
+%do i = 1 %to &count;
+%comparator_mej(var=&&variable&i);
+%end;
+%mend;
+%call_comp3;
+　
+/*===============================Extended Jaccard comparator added to the datasets===============================*/
+　
+%macro comparator_ej(var=);
+/*extended jaccard*/
+data outcomp1;
+set outcomp1;
+if (&var="?")then &var='';
+array col1{20} $50; array col2{20} $50;array col3{400} $50;array col4{400}$50;
+array lev{400};
+array sim{400};
+length string1 $500;
+length string2 $500;
+string1=trim(compbl(&string1));
+string2=trim(compbl(&var));
+/*counting the number of words in the string taking space as the separator*/
+c1=countw(string1,' ');
+c2=countw(string2,' ');
+/*scanning different tokens of strings into columns*/
+do i = 1 to c1;
+col1[i]=lowcase(scan(string1,i,' ')); 
+end;
+do i = 1 to c2;
+col2[i]=lowcase(scan(string2,i,' ')); 
+end;
+k=1;S=0;p=1;q=1;
+/*starting loop to calculating levenshtein distance and in turn levenshtein similarity*/
+do i = 1 to c1;
+do j=1 to c2;
+lev[k]=complev(col1[i],col2[j]);
+if(length(col1[i])>length(col2[j]))then sim[k]=1-lev[k]/length(col1[i]);
+else sim[k]=1-lev[k]/length(col2[j]);
+/* If the levenshtein similarity between tokens is greater than 0.6 then both tokens are stored in new seprate columns*/
+/*and total number of comparisons which have levenshtein similarity are calculated*/
+if (sim[k]>=0.6) 
+then do;
+S=S+1;
+col3[p]=col1[i];
+col4[q]=col2[j];
+p=p+1;
+q=q+1;
+end;
+k=k+1;
+end;
+end;
+/*Each token of first string is searched in the new columns created in above step. */
+/*Total number of tokens are found which are not present in the new columns*/
+b=0;
+do i=1 to c1;
+a=0;
+do j=1 to (c1*c2);
+if (col1[i]=col3[j]) then a=a+1;
+end; 
+if (a<1) then b=b+1;
+end;
+/*Each token of second string is searched in the new columns created in above step. */
+/*Total number of tokens are found which are not present in the new columns*/
+d=0;
+do i=1 to c2;
+c=0;
+do j=1 to (c1*c2);
+if (col2[i]=col4[j]) then c=c+1;
+end; 
+if (c<1) then d=d+1;
+end;
+ext_jacc = S/(S+d+b);
+rename ext_jacc=&var._ext_jacc;
+drop col11-col120;drop col21-col220;drop col31-col3400;drop col41-col4400;drop lev1-lev1400;drop sim1-sim1400;
+drop string1;drop string2;drop c1;drop c2;drop i;drop j;drop k;drop a;drop b;drop c;drop d;drop p;drop q;drop s;
+run;
+data outcomp1;
+set outcomp1;
+if(&var='') then do;
+&var._ext_jacc='';
+end;
+run;
+data outcomp1;
+set outcomp1;
+if(&string1='') then do;
+&var._ext_jacc='';
+end;
+run;
+/*extended jaccard*/
+%mend comparator_ej;
+%macro call_comp4;
+%do i = 1 %to &count;
+%comparator_ej(var=&&variable&i);
+%end;
+%mend;
+%call_comp4;
+data outcomp1;
+set outcomp1;
+RENAME mrch_nm_monge_lev=mrch_nm_monge_lev1
+mrch_nm_levensim=mrch_nm_levensim1
+mrch_nm_monge_jaro=mrch_nm_monge_jaro1
+mrch_nm_ext_jacc=mrch_nm_ext_jacc1
+alt_mrch_nm_monge_lev=alt_mrch_nm_monge_lev1
+alt_mrch_nm_monge_jaro=alt_mrch_nm_monge_jaro1
+alt_mrch_nm_levensim=alt_mrch_nm_levensim1
+alt_mrch_nm_ext_jacc=alt_mrch_nm_ext_jacc1;
+run;
+　
+/*=================================End of adding one Comparators to the DATASET=================================*/
+　
+/*copying the test data into new table where other set of comparator will be added */
+/*initialising the input string as the main column to run comparators against*/
+%let string1=input_string2;
+　
+/*creating macro of all comparators*/
+%macro comparator_mel(var=);
+/*monge elkan levenshtein*/
+data outcomp1;
+set outcomp1;
+if (&var="?")then &var='';
+/*declaring array*/
+array col1{20} $50; array col2{20} $50;
+array lev{400};
+array lev_sim{400};
+array lev_max{400};
+/*counting the words using space as a separator*/
+c1=countw(&string1,' ');
+c2=countw(&var,' ');
+length string1 $500;
+length string2 $500;
+/*declaring the shorter string as first string*/
+if(c1>c2)
+then do;
+string1=&var;
+string2=&string1;
+clong=c1;
+cshort=c2;
+end;
+else
+do;
+string1=&string1;
+string2=&var;
+clong=c2;
+cshort=c1;
+end;
+string1=lowcase(trim(compbl(string1)));
+string2=lowcase(trim(compbl(string2)));
+/*scanning the string to columns*/
+do i = 1 to cshort;
+col1[i]=scan(string1,i,' ');
+end;
+do i = 1 to clong;
+col2[i]=scan(string2,i,' '); 
+end;
+/*starting the loop to give levenshtein distance and inturn giving levenshtein similarity*/
+do i= 1 to cshort;
+p=1;q=1;
+do j=1 to clong;
+lev[p]=complev(col1[i],col2[j]);
+if(length(col1[i])>length(col2[j]))then lev_sim[q]=1-lev[p]/length(col1[i]);
+else lev_sim[q]=1-lev[p]/length(col2[j]);
+p=p+1;
+q=q+1;
+end;
+/*starting another loop to find the maximum levenshtien similarity for each token of first string against all the tokens of second string*/
+lev_max[i]=0;
+do k=1 to q-1;
+if (lev_sim[k]>=lev_max[i])then lev_max[i]=lev_sim[k];
+end;
+end;
+/*adding the max levenshtien similarity for each token in first string*/
+sum=0;
+do l=1 to cshort;
+sum=sum+lev_max[l];
+end;
+/*taking mean of the sum to calculate the mongeElkan levenshtein similarity*/
+monge_lev=sum/(cshort);
+rename monge_lev=&var._monge_lev;
+drop clong;drop cshort;drop p;drop q;drop i;drop j;drop k;drop l;drop sum;drop string1;drop string2;drop c1;drop c2;
+drop lev_max1-lev_max400;drop lev1-lev400;drop lev_sim1-lev_sim400;drop col11-col120;drop col21-col220;
+run;
+/*end monge elkan levenshtein*/
+%mend comparator_mel;
+　
+　
+　
+/*stating the desired columns*/
+data varnames;
+length var $50.;
+input var $;
+informat var $50.;
+format var $50.;
+datalines;
+mrch_nm
+alt_mrch_nm
+;
+run;
+/*storing the desired columns,required for running comparators,in variable*/
+data _null_;
+set varnames;
+call symput(compress('variable'||_n_),var);
+call symput ('count',_n_);
+run;
+/*creating macro which will intake one column at a time and run all the comparators*/
+%macro call_comp1;
+%do i = 1 %to &count;
+%comparator_mel(var=&&variable&i);
+%end;
+%mend;
+/*calling the macro created above*/
+%call_comp1;
+　
+　
+　
+　
+/*===================================Levenshtein Comparator being added to the dataset ==========================*/
+　
+　
+%macro comparator_l(var=);
+/*levenshtein similarity*/
+data outcomp1;
+set outcomp1;
+if (&var="?")then &var='';
+/*findind the length of both strings*/
+l1=length(&string1);
+l2=length(&var);
+string1=lowcase(&string1);
+string2=lowcase(&var);
+/*calculating the levenshtein distance and in turn levenshtien similiarity*/
+lev_dist=complev(string1,string2);
+levensim=1-(lev_dist/max(l1,l2));
+rename levensim=&var._levensim;
+drop l1;drop l2;drop lev_dist;drop string1 string2;
+run;
+data outcomp1;
+set outcomp1;
+if(&var='') then do;
+&var._levensim='';
+end;
+if(&string1='') then do;
+&var._levensim='';
+end;
+run;
+/*end levenshtein similarity*/
+　
+%mend comparator_l; 
+%macro call_comp2;
+%do i = 1 %to &count;
+%comparator_l(var=&&variable&i);
+%end;
+%mend;
+%call_comp2;
+　
+　
+　
+/*=========================Monge Elkan with Jarowinklercomparator being added to the dataset*/
+　
+%macro comparator_mej(var=);
+/*creating jarowink function*/
+proc fcmp outlib=work.jaro.chars;
+function jaromatch(string1 $, string2 $) $ 40;
+length matchChars $ 40;
+str1_len = lengthn(string1);
+str2_len = lengthn(string2);
+allowedDist = floor(max(str1_len, str2_len) / 2) - 1;
+*** walk through string1 and match characters to string2 ***;
+matchChars="";
+do i= 1 to str1_len;
+*** get the part of string2 to search ***;
+allowed_start = max(1, i - allowedDist); *** starting char position ***;
+allowed_str2 = substr(string2, allowed_start, i + allowedDist - allowed_start + 1);
+*** find i char from string1 in string2 within the allowedDist ***;
+position = findc(allowed_str2, substr(string1, i, 1));
+if position > 0 
+then do;
+matchChars = cats(matchChars, substr(allowed_str2, position, 1));
+*** Once a char is assigned, it can not be assigned again. So, chg char in string2. ***;
+substr(string2, allowed_start + position -1, 1) = '~';
+end;
+end;
+return(strip(matchChars));
+endsub;
+/* count the number of "half" transpositions */
+function jarotrans(string1 $, string2 $);
+ntrans = 0;
+do i = 1 to min(lengthn(strip(string1)), lengthn(strip(string2)));
+if substr(string1, i, 1) ne substr(string2, i, 1) then ntrans + 1;
+end;
+return(ntrans / 2);
+endsub;
+/* get the length of the matching characters at the beginning */
+function getPrefixlen(string1 $, string2 $, maxprelen);
+n = min(maxprelen, lengthn(string1), lengthn(string2));
+if n = 0
+then return(0);
+else do;
+do i = 1 to n;
+if substr(string1, i, 1) ne substr(string2, i, 1) 
+then return(i - 1);
+end;
+return(n); *** all maxprelen characters match ***;
+end;
+endsub;
+/* calc the jaro distance */
+function jarodist(string1 $, string2 $);
+*** get number of matched characters in string1 ***;
+m1 = jaromatch(string1, string2);
+m1_len = lengthn(m1);
+if m1_len = 0 then return(0);
+*** get number of matched characters in string2 ***;
+m2 = jaromatch(string2, string1);
+m2_len = lengthn(m2);
+if m2_len = 0 then return(0);
+*** get number of transposed characters ***;
+ntrans = jarotrans(m1, m2);
+*** calc jaro distance ***;
+j_dist = (m1_len / lengthn(string1) + m2_len / lengthn(string2) + (m1_len - ntrans) / m1_len) / 3;
+return(j_dist);
+endsub;
+/* calc the jaro-winkler distance */
+function jarowink(string1 $, string2 $, prefixscale);
+string1 = upcase(strip(string1));
+string2 = upcase(strip(string2));
+*** check for trivial case and calc JW if needed ***;
+if string1 = string2
+then return(1.0);
+else do;
+jarodist = jarodist(string1, string2);
+prelen = getPrefixlen(string1, string2, 4);
+return(jarodist + prelen * prefixscale * (1 - jarodist));
+end;
+endsub;
+run;
+/*end jarowink function*/
+　
+/*mongeElkanJaroWinkler*/
+/*defining the library where the funcion is stored*/
+option cmplib=work.jaro;
+data outcomp1;
+set outcomp1;
+array col1{20} $50; array col2{20} $50;array len1{20} ;array len2{20};
+array jarowink_sim{400};
+array jarowink_max{400};
+if (&var="?")then &var='';
+/*counting the number of words in string taking space as the separator*/
+c1=countw(&string1,' ');
+c2=countw(&var,' ');
+length string1 $500;
+length string2 $500;
+/*declaring shorter string as first string and longer as second*/
+if(c1>c2)
+then do;
+string1=&var;
+string2=&string1;
+clong=c1;
+cshort=c2;
+end;
+else
+do;
+string1=&string1;
+string2=&var;
+clong=c2;
+cshort=c1;
+end;
+string1=lowcase(trim(compbl(string1)));
+string2=lowcase(trim(compbl(string2)));
+/*scanning different tokens of each string into different columns*/
+do i = 1 to cshort;
+col1[i]=scan(string1,i,' ');
+len1[i]=length(col1[i]);
+end;
+do i = 1 to clong;
+col2[i]=scan(string2,i,' '); 
+len2[i]=length(col2[i]);
+end;
+/*starting the loop to give jarowinkler distance and inturn giving jarowinkler similarity*/
+do i= 1 to cshort;
+p=1;q=1;
+do j=1 to clong;
+jarowink_sim[p]=jarowink(col1[i],col2[j],0.1);
+p=p+1;
+q=q+1;
+end;
+/*starting another loop to find the maximum jarowinkler similarity for each token of first string against all the tokens of second string*/
+jarowink_max[i]=0;
+do k=1 to q-1;
+if (jarowink_sim[k]>=jarowink_max[i])then jarowink_max[i]=jarowink_sim[k];
+end;
+end;
+/*adding the max jarowinkler similarity of each token in first string*/
+sum=0;
+do l=1 to cshort;
+sum=sum+jarowink_max[l];
+end;
+/*taking mean of the sum to calculate the mongeElkan jarowinkler similarity*/
+monge_jaro=sum/(cshort);
+rename monge_jaro= &var._monge_jaro; 
+drop col11-col120;drop col21-col220;drop len11-len120;drop len21-len220;drop jarowink_sim1-jarowink_sim400;drop jarowink_max1-jarowink_max400;
+drop i;drop j;drop k;drop l;drop sum;drop p;drop q; drop clong;drop cshort;drop string1;drop string2; drop c1; drop c2;
+run;
+/*end mongeElkanJaroWinkler*/
+%mend comparator_mej;
+%macro call_comp3;
+%do i = 1 %to &count;
+%comparator_mej(var=&&variable&i);
+%end;
+%mend;
+%call_comp3;
+　
+/*===============================Extended Jaccard comparator added to the datasets===============================*/
+　
+%macro comparator_ej(var=);
+/*extended jaccard*/
+data outcomp1;
+set outcomp1;
+if (&var="?")then &var='';
+array col1{20} $50; array col2{20} $50;array col3{400} $50;array col4{400}$50;
+array lev{400};
+array sim{400};
+length string1 $500;
+length string2 $500;
+string1=trim(compbl(&string1));
+string2=trim(compbl(&var));
+/*counting the number of words in the string taking space as the separator*/
+c1=countw(string1,' ');
+c2=countw(string2,' ');
+/*scanning different tokens of strings into columns*/
+do i = 1 to c1;
+col1[i]=lowcase(scan(string1,i,' ')); 
+end;
+do i = 1 to c2;
+col2[i]=lowcase(scan(string2,i,' ')); 
+end;
+k=1;S=0;p=1;q=1;
+/*starting loop to calculating levenshtein distance and in turn levenshtein similarity*/
+do i = 1 to c1;
+do j=1 to c2;
+lev[k]=complev(col1[i],col2[j]);
+if(length(col1[i])>length(col2[j]))then sim[k]=1-lev[k]/length(col1[i]);
+else sim[k]=1-lev[k]/length(col2[j]);
+/* If the levenshtein similarity between tokens is greater than 0.6 then both tokens are stored in new seprate columns*/
+/*and total number of comparisons which have levenshtein similarity are calculated*/
+if (sim[k]>=0.6) 
+then do;
+S=S+1;
+col3[p]=col1[i];
+col4[q]=col2[j];
+p=p+1;
+q=q+1;
+end;
+k=k+1;
+end;
+end;
+/*Each token of first string is searched in the new columns created in above step. */
+/*Total number of tokens are found which are not present in the new columns*/
+b=0;
+do i=1 to c1;
+a=0;
+do j=1 to (c1*c2);
+if (col1[i]=col3[j]) then a=a+1;
+end; 
+if (a<1) then b=b+1;
+end;
+/*Each token of second string is searched in the new columns created in above step. */
+/*Total number of tokens are found which are not present in the new columns*/
+d=0;
+do i=1 to c2;
+c=0;
+do j=1 to (c1*c2);
+if (col2[i]=col4[j]) then c=c+1;
+end; 
+if (c<1) then d=d+1;
+end;
+ext_jacc = S/(S+d+b);
+rename ext_jacc=&var._ext_jacc;
+drop col11-col120;drop col21-col220;drop col31-col3400;drop col41-col4400;drop lev1-lev1400;drop sim1-sim1400;
+drop string1;drop string2;drop c1;drop c2;drop i;drop j;drop k;drop a;drop b;drop c;drop d;drop p;drop q;drop s;
+run;
+data outcomp1;
+set outcomp1;
+if(&var='') then do;
+&var._ext_jacc='';
+end;
+run;
+data outcomp1;
+set outcomp1;
+if(&string1='') then do;
+&var._ext_jacc='';
+end;
+run;
+/*extended jaccard*/
+%mend comparator_ej;
+%macro call_comp4;
+%do i = 1 %to &count;
+%comparator_ej(var=&&variable&i);
+%end;
+%mend;
+%call_comp4;
+data test;
+set outcomp1;
+RENAME mrch_nm_monge_lev=mrch_nm_monge_lev2
+mrch_nm_levensim=mrch_nm_levensim2
+mrch_nm_monge_jaro=mrch_nm_monge_jaro2
+mrch_nm_ext_jacc=mrch_nm_ext_jacc2
+alt_mrch_nm_monge_lev=alt_mrch_nm_monge_lev2
+alt_mrch_nm_monge_jaro=alt_mrch_nm_monge_jaro2
+alt_mrch_nm_levensim=alt_mrch_nm_levensim2
+alt_mrch_nm_ext_jacc=alt_mrch_nm_ext_jacc2;
+run;
+　
+/*=================================End of adding Comparators to the DATASET=================================*/
+　
+　
+　
+/*===================================BLOCK3 SPLITTING DATA======================================================*/
+/*====================================Code Synopsis=============================================*/
+/*This block of code is to split dataset into two that will be in turn fed into two models. One for
+making predictions on records which do not have unknowns in brnd_nm_cur and other for making predictions 
+on records with unknowns in brnd_nm_cur */
+/*================================END OF CODE SYNOPSIS==========================================*/
+/*Splitting of dataset into two parts*/
+data test_without_unknowns;
+set test;
+if input_string1 ne '';
+run;
+　
+data test_only_unknowns;
+set test;
+if input_string1='';
+run;
+/*renaming the columns present in test_only_unknowns to names present in the prediction models*/
+data test_only_unknowns;
+set test_only_unknowns;
+rename mrch_nm_monge_lev2=mrch_nm_monge_lev
+mrch_nm_levensim2=mrch_nm_levensim
+mrch_nm_monge_jaro2=mrch_nm_monge_jaro
+mrch_nm_ext_jacc2=mrch_nm_ext_jacc
+alt_mrch_nm_monge_lev2=alt_mrch_nm_monge_lev
+alt_mrch_nm_monge_jaro2=alt_mrch_nm_monge_jaro
+alt_mrch_nm_levensim2=alt_mrch_nm_levensim
+alt_mrch_nm_ext_jacc2=alt_mrch_nm_ext_jacc;
+run;
+/*==========================================BLOCK4A MODEL 1=====================================================*/
+/*====================================Code Synopsis===============================================*/
+/*BLOCK 4A has model code that has been trained to predict on records where brnd_nm_cur is not UNKNOWN
+/*This code will give the prediction scores and probability scores of a record being mapped to suggested_brand.
+/*The prediction of 1 here means the record is highly likely to be mapped to a suggested_brand and 
+/* a prediction of 0 means the record is highly likely to be mapped to brnd_nm_cur. The model code being used here
+/* is a Random Forest generated via SAS Enterprise Miner.
+/*================================END OF CODE SYNOPSIS==========================================*/
+　
+data test1;
+set test_without_unknowns;
+run;
+data test1;
+set test1;
+*------------------------------------------------------------*;
+* EM SCORE CODE;
+* EM Version: 13.2;
+* SAS Release: 9.04.01M2P072314;
+* Host: rwxp394;
+* Encoding: latin1;
+* Locale: en_US;
+* Project Path: /DATA/MRM_VAL-NOBKUP/rkrish2/EM;
+* Project Name: modesl_for_Ddf;
+* Diagram Id: EMWS1;
+* Diagram Name: mdoels;
+* Generated by: rkrish2;
+* Date: 18FEB2016:01:23:42;
+*------------------------------------------------------------*;
+*------------------------------------------------------------*;
+* TOOL: Extension Class;
+* TYPE: SAMPLE;
+* NODE: FIMPORT;
+*------------------------------------------------------------*;
+*------------------------------------------------------------*;
+* TOOL: Partition Class;
+* TYPE: SAMPLE;
+* NODE: Part;
+*------------------------------------------------------------*;
+*------------------------------------------------------------*;
+* TOOL: Imputation;
+* TYPE: MODIFY;
+* NODE: Impt;
+*------------------------------------------------------------*;
+*;
+*MEAN-MAX-MIN-MEDIAN-MIDRANGE AND ROBUST ESTIMATES;
+*;
+format IMP_alt_mrch_nm_ext_jacc1 BEST12.0;
+label IMP_alt_mrch_nm_ext_jacc1 = 'Imputed alt_mrch_nm_ext_jacc1';
+IMP_alt_mrch_nm_ext_jacc1 = alt_mrch_nm_ext_jacc1;
+if missing(alt_mrch_nm_ext_jacc1) then IMP_alt_mrch_nm_ext_jacc1 = 0.333333333;
+format IMP_alt_mrch_nm_ext_jacc2 BEST12.0;
+label IMP_alt_mrch_nm_ext_jacc2 = 'Imputed alt_mrch_nm_ext_jacc2';
+IMP_alt_mrch_nm_ext_jacc2 = alt_mrch_nm_ext_jacc2;
+if missing(alt_mrch_nm_ext_jacc2) then IMP_alt_mrch_nm_ext_jacc2 = 0.5;
+format IMP_alt_mrch_nm_levensim1 BEST12.0;
+label IMP_alt_mrch_nm_levensim1 = 'Imputed alt_mrch_nm_levensim1';
+IMP_alt_mrch_nm_levensim1 = alt_mrch_nm_levensim1;
+if missing(alt_mrch_nm_levensim1) then IMP_alt_mrch_nm_levensim1 = 0.636363636;
+format IMP_alt_mrch_nm_levensim2 BEST12.0;
+label IMP_alt_mrch_nm_levensim2 = 'Imputed alt_mrch_nm_levensim2';
+IMP_alt_mrch_nm_levensim2 = alt_mrch_nm_levensim2;
+if missing(alt_mrch_nm_levensim2) then IMP_alt_mrch_nm_levensim2 = 0.642857143;
+format IMP_alt_mrch_nm_monge_jaro1 BEST12.0;
+label IMP_alt_mrch_nm_monge_jaro1 = 'Imputed alt_mrch_nm_monge_jaro1';
+IMP_alt_mrch_nm_monge_jaro1 = alt_mrch_nm_monge_jaro1;
+if missing(alt_mrch_nm_monge_jaro1) then IMP_alt_mrch_nm_monge_jaro1 = 0.936363636;
+format IMP_alt_mrch_nm_monge_jaro2 BEST12.0;
+label IMP_alt_mrch_nm_monge_jaro2 = 'Imputed alt_mrch_nm_monge_jaro2';
+IMP_alt_mrch_nm_monge_jaro2 = alt_mrch_nm_monge_jaro2;
+if missing(alt_mrch_nm_monge_jaro2) then IMP_alt_mrch_nm_monge_jaro2 = 1;
+format IMP_alt_mrch_nm_monge_lev1 BEST12.0;
+label IMP_alt_mrch_nm_monge_lev1 = 'Imputed alt_mrch_nm_monge_lev1';
+IMP_alt_mrch_nm_monge_lev1 = alt_mrch_nm_monge_lev1;
+if missing(alt_mrch_nm_monge_lev1) then IMP_alt_mrch_nm_monge_lev1 = 0.681818182;
+format IMP_alt_mrch_nm_monge_lev2 BEST12.0;
+label IMP_alt_mrch_nm_monge_lev2 = 'Imputed alt_mrch_nm_monge_lev2';
+IMP_alt_mrch_nm_monge_lev2 = alt_mrch_nm_monge_lev2;
+if missing(alt_mrch_nm_monge_lev2) then IMP_alt_mrch_nm_monge_lev2 = 1;
+format IMP_mrch_nm_ext_jacc2 BEST12.0;
+label IMP_mrch_nm_ext_jacc2 = 'Imputed mrch_nm_ext_jacc2';
+IMP_mrch_nm_ext_jacc2 = mrch_nm_ext_jacc2;
+if missing(mrch_nm_ext_jacc2) then IMP_mrch_nm_ext_jacc2 = 0;
+format IMP_mrch_nm_levensim2 BEST12.0;
+label IMP_mrch_nm_levensim2 = 'Imputed mrch_nm_levensim2';
+IMP_mrch_nm_levensim2 = mrch_nm_levensim2;
+if missing(mrch_nm_levensim2) then IMP_mrch_nm_levensim2 = 0.333333333;
+format IMP_mrch_nm_monge_jaro2 BEST12.0;
+label IMP_mrch_nm_monge_jaro2 = 'Imputed mrch_nm_monge_jaro2';
+IMP_mrch_nm_monge_jaro2 = mrch_nm_monge_jaro2;
+if missing(mrch_nm_monge_jaro2) then IMP_mrch_nm_monge_jaro2 = 0.725;
+format IMP_mrch_nm_monge_lev2 BEST12.0;
+label IMP_mrch_nm_monge_lev2 = 'Imputed mrch_nm_monge_lev2';
+IMP_mrch_nm_monge_lev2 = mrch_nm_monge_lev2;
+if missing(mrch_nm_monge_lev2) then IMP_mrch_nm_monge_lev2 = 0.333333333;
+*------------------------------------------------------------*;
+* TOOL: Variable selection Class;
+* TYPE: EXPLORE;
+* NODE: Varsel;
+*------------------------------------------------------------*;
+******************************************;
+*** Begin Scoring Code from PROC DMINE ***;
+******************************************;
+length _WARN_ $ 4;
+label _WARN_ = "Warnings";
+　
+　
+****************************************;
+*** End Scoring Code from PROC DMINE ***;
+****************************************;
+*------------------------------------------------------------*;
+* TOOL: Extension Class;
+* TYPE: MODEL;
+* NODE: HPDMForest;
+*------------------------------------------------------------*;
+%macro em_hpfst_score;
+%if %symexist(hpfst_score_input)=0 %then %let hpfst_score_input=test1;
+%if %symexist(hpfst_score_output)=0 %then %let hpfst_score_output=test1;
+%if %symexist(hpfst_id_vars)=0 %then %let hpfst_id_vars = _ALL_;
+%let hpvvn= %sysfunc(getoption(VALIDVARNAME));
+options validvarname=V7;
+proc hp4score data=&hpfst_score_input;
+id &hpfst_id_vars;
+%if %symexist(EM_USER_OUTMDLFILE)=0 %then %do;
+score file="/DATA/MRM_VAL-NOBKUP/rkrish2/EM/modesl_for_Ddf/Workspaces/EMWS1/HPDMForest/OUTMDLFILE.bin" out=&hpfst_score_output;
+%end;
+%else %do;
+score file="&EM_USER_OUTMDLFILE" out=&hpfst_score_output;
+%end;
+PERFORMANCE;
+run;
+options validvarname=&hpvvn;
+data &hpfst_score_output;
+set &hpfst_score_output;
+%mend;
+%em_hpfst_score;
+run;
+data test1;
+set test1;
+*------------------------------------------------------------*;
+*Computing Classification Vars: flag;
+*------------------------------------------------------------*;
+length _format200 $200;
+drop _format200;
+_format200= ' ' ;
+_p_= 0 ;
+drop _p_ ;
+if P_flag1 - _p_ > 1e-8 then do ;
+_p_= P_flag1 ;
+_format200='1';
+end;
+if P_flag0 - _p_ > 1e-8 then do ;
+_p_= P_flag0 ;
+_format200='0';
+end;
+I_flag=dmnorm(_format200,32); ;
+label U_flag = 'Unnormalized Into: flag';
+format U_flag BEST12.;
+if I_flag='1' then
+U_flag=1;
+if I_flag='0' then
+U_flag=0;
+/*data &em_score_output;*/
+/*set &em_score_output;*/
+*------------------------------------------------------------*;
+* TOOL: Score Node;
+* TYPE: ASSESS;
+* NODE: Score;
+*------------------------------------------------------------*;
+*------------------------------------------------------------*;
+* Score: Creating Fixed Names;
+*------------------------------------------------------------*;
+LABEL EM_EVENTPROBABILITY = 'Probability for level 1 of flag';
+EM_EVENTPROBABILITY = P_flag1;
+LABEL EM_PROBABILITY = 'Probability of Classification';
+EM_PROBABILITY =
+max(
+P_flag1
+,
+P_flag0
+);
+LENGTH EM_CLASSIFICATION $%dmnorlen;
+LABEL EM_CLASSIFICATION = "Prediction for flag";
+EM_CLASSIFICATION = I_flag;
+keep mid clo_ind mrch_sub_brnd_id mrch_sub_brnd_nm mrch_brnd_id suggested_brand action_2 comments mrch_corp_id mrch_corp_nm mrch_cglm_id mrch_cglm_nm
+brnd_rl_fzy_final record_type sub_brand_change trnsfrm_dt min brnd_id_cur brnd_nm_cur brnd_rl_cur brnd_id_exp brnd_nm_exp brnd_rl_exp eff_dt_cur eff_dt_exp
+exp_dt_cur exp_dt_exp bus_ovrrd_ind_mp_cur bus_ovrrd_ind_msb_cur bus_ovrrd_ind_mb_cur bus_ovrrd_ind_mp_exp bus_ovrrd_ind_msb_exp bus_ovrrd_ind_mb_exp 
+mrch_nm alt_mrch_nm final_score final_brand_src fuzzy_match lst_stlmt_dt lst_auth_dt lst_aprv_auth_dt open_dt clse_dt adr_ln_1_txt adr_ln_2_txt adr_ln_3_txt
+cty_nm pstl_cde st_or_sectn_cde cntry_cde date_completed worked_by input_string1 input_string2
+mrch_nm_monge_lev1 alt_mrch_nm_monge_lev1 mrch_nm_levensim1 alt_mrch_nm_levensim1 mrch_nm_monge_jaro1 alt_mrch_nm_monge_jaro1 mrch_nm_ext_jacc1 alt_mrch_nm_ext_jacc1
+mrch_nm_monge_lev2 alt_mrch_nm_monge_lev2 mrch_nm_levensim2 alt_mrch_nm_levensim2 mrch_nm_monge_jaro2 alt_mrch_nm_monge_jaro2 mrch_nm_ext_jacc2 alt_mrch_nm_ext_jacc2
+EM_EVENTPROBABILITY EM_CLASSIFICATION;
+rename EM_EVENTPROBABILITY=prob_suggested_brand EM_CLASSIFICATION=pred_suggested_brand;
+　
+run;
+　
+/*==========================================BLOCK4B MODEL 2=====================================================*/
+/*====================================Code Synopsis==============================================*/
+/*BLOCK 4B has model code that has been trained to predict on records where brnd_nm_cur is UNKNOWN
+/*This model is work in progress.It is subjected to updates.*/
+/*This code will give the prediction scores and probability scores of a record being mapped to suggested_brand.
+/*The prediction of 1 here means the record is highly likely to be mapped to a suggested_brand and 
+/* a prediction of 0 means the record is highly likely to be mapped to brnd_nm_cur.
+/*The model being used here is a Support Vector Machine generated via SAS Enterprise Miner.
+/*================================END OF CODE SYNOPSIS==========================================*/
+　
+data test2;
+set test_only_unknowns;
+run;
+data test2;
+set test2;
+*------------------------------------------------------------*;
+* EM SCORE CODE;
+* EM Version: 13.2;
+* SAS Release: 9.04.01M2P072314;
+* Host: rwxp204;
+* Encoding: latin1;
+* Locale: en_US;
+* Project Path: /DATA/home/sgupt12;
+* Project Name: model_ddf;
+* Diagram Id: EMWS3;
+* Diagram Name: DDF_RBR_Model822016;
+* Generated by: sgupt12;
+* Date: 18FEB2016:02:35:29;
+*------------------------------------------------------------*;
+*------------------------------------------------------------*;
+* TOOL: Extension Class;
+* TYPE: SAMPLE;
+* NODE: FIMPORT2;
+*------------------------------------------------------------*;
+*------------------------------------------------------------*;
+* TOOL: Partition Class;
+* TYPE: SAMPLE;
+* NODE: Part2;
+*------------------------------------------------------------*;
+*------------------------------------------------------------*;
+* TOOL: Extension Class;
+* TYPE: MODEL;
+* NODE: HPSVM;
+*------------------------------------------------------------*;
+*************************************************************;
+******* Begin Scoring Code from PROC HPSVM *******;
+*************************************************************;
+length _WARN_ $4;
+label _WARN_ = 'Warnings';
+length _P_ 8;
+length _PVAL 8;
+_PVAL=0.0;
+length _missingflag_ 8;
+drop _missingflag_;
+_missingflag_ = NMISS(
+alt_mrch_nm_ext_jacc,
+alt_mrch_nm_levensim,
+alt_mrch_nm_monge_jaro,
+alt_mrch_nm_monge_lev,
+mrch_nm_ext_jacc,
+mrch_nm_levensim,
+mrch_nm_monge_jaro,
+mrch_nm_monge_lev);
+if _missingflag_ > 0 then
+substr(_WARN_, 1, 1) = 'M';
+***************** interval: alt_mrch_nm_ext_jacc ********************;
+if missing( alt_mrch_nm_ext_jacc ) then do;
+_PVAL = _PVAL + -6.39224677196560E-01;
+end; else do;
+_PVAL = _PVAL + alt_mrch_nm_ext_jacc * -1.04259074356180E+00;
+end;
+***************** interval: alt_mrch_nm_levensim ********************;
+if missing( alt_mrch_nm_levensim ) then do;
+_PVAL = _PVAL + -1.10212835557590E-01;
+end; else do;
+_PVAL = _PVAL + alt_mrch_nm_levensim * -1.62500917342220E-01;
+end;
+***************** interval: alt_mrch_nm_monge_jaro ********************;
+if missing( alt_mrch_nm_monge_jaro ) then do;
+_PVAL = _PVAL + -6.28891518455380E-01;
+end; else do;
+_PVAL = _PVAL + (alt_mrch_nm_monge_jaro
+- 1.91666667000000E-01) * -8.55616274400060E-01;
+end;
+***************** interval: alt_mrch_nm_monge_lev ********************;
+if missing( alt_mrch_nm_monge_lev ) then do;
+_PVAL = _PVAL + -1.88444510715430E+00;
+end; else do;
+_PVAL = _PVAL + (alt_mrch_nm_monge_lev
+- 1.25000000000000E-01) * -2.75351574468610E+00;
+end;
+***************** interval: mrch_nm_ext_jacc ********************;
+if missing( mrch_nm_ext_jacc ) then do;
+_PVAL = _PVAL + 4.62810788200680E-01;
+end; else do;
+_PVAL = _PVAL + mrch_nm_ext_jacc * 8.70430059997380E-01;
+end;
+***************** interval: mrch_nm_levensim ********************;
+if missing( mrch_nm_levensim ) then do;
+_PVAL = _PVAL + -1.49599967108780E+00;
+end; else do;
+_PVAL = _PVAL + (mrch_nm_levensim
+- 9.09090910000000E-02) * -2.78172399634970E+00;
+end;
+***************** interval: mrch_nm_monge_jaro ********************;
+if missing( mrch_nm_monge_jaro ) then do;
+_PVAL = _PVAL + -2.72786463940560E-01;
+end; else do;
+_PVAL = _PVAL + mrch_nm_monge_jaro * -3.01093181575030E-01;
+end;
+***************** interval: mrch_nm_monge_lev ********************;
+if missing( mrch_nm_monge_lev ) then do;
+_PVAL = _PVAL + -1.20706271221660E+00;
+end; else do;
+_PVAL = _PVAL + mrch_nm_monge_lev * -1.56923437923040E+00;
+end;
+********************* BETA ******************;
+_PVAL = _PVAL + 5.91394088119230E+00;
+_P_ = _PVAL;
+************* predictive target ***************;
+length P_match_flag_notunknown1 8;
+label P_match_flag_notunknown1 = 'Predicted: match_flag_notunknown=1' ;
+length P_match_flag_notunknown0 8;
+label P_match_flag_notunknown0 = 'Predicted: match_flag_notunknown=0' ;
+length I_match_flag_notunknown $ 32;
+label I_match_flag_notunknown = 'Into: match_flag_notunknown' ;
+if _PVAL ge 0.0 then _PVAL = _PVAL/ 5.39339195541710E+00;
+else _PVAL = -_PVAL/ -1.92083770840360E+00;
+_PVAL = (_PVAL + 1) * 0.5;
+if _PVAL > 1 then _PVAL = 1.0;
+else if _PVAL < 0 then _PVAL = 0.0;
+_PVAL = 1 - _PVAL;
+P_match_flag_notunknown1 = _PVAL;
+P_match_flag_notunknown0 = 1 - P_match_flag_notunknown1;
+if _PVAL ge 0.5 then I_match_flag_notunknown = '1' ;
+else I_match_flag_notunknown = '0' ;
+drop _PVAL;
+*************************************************************;
+******* End Scoring Code from PROC HPSVM *******;
+*************************************************************;
+*------------------------------------------------------------*;
+*Computing Classification Vars: match_flag_notunknown;
+*------------------------------------------------------------*;
+length _format200 $200;
+drop _format200;
+_format200= ' ' ;
+_p_= 0 ;
+drop _p_ ;
+if P_match_flag_notunknown1 - _p_ > 1e-8 then do ;
+_p_= P_match_flag_notunknown1 ;
+_format200='1';
+end;
+if P_match_flag_notunknown0 - _p_ > 1e-8 then do ;
+_p_= P_match_flag_notunknown0 ;
+_format200='0';
+end;
+I_match_flag_notunknown=dmnorm(_format200,32); ;
+label U_match_flag_notunknown = 'Unnormalized Into: match_flag_notunknown';
+format U_match_flag_notunknown BEST12.;
+if I_match_flag_notunknown='1' then
+U_match_flag_notunknown=1;
+if I_match_flag_notunknown='0' then
+U_match_flag_notunknown=0;
+*------------------------------------------------------------*;
+* TOOL: Score Node;
+* TYPE: ASSESS;
+* NODE: Score5;
+*------------------------------------------------------------*;
+*------------------------------------------------------------*;
+* Score5: Creating Fixed Names;
+*------------------------------------------------------------*;
+LABEL EM_EVENTPROBABILITY = 'Probability for level 1 of match_flag_notunknown';
+EM_EVENTPROBABILITY = P_match_flag_notunknown1;
+LABEL EM_PROBABILITY = 'Probability of Classification';
+EM_PROBABILITY =
+max(
+P_match_flag_notunknown1
+,
+P_match_flag_notunknown0
+);
+LENGTH EM_CLASSIFICATION $%dmnorlen;
+LABEL EM_CLASSIFICATION = "Prediction for match_flag_notunknown";
+EM_CLASSIFICATION = I_match_flag_notunknown;
+　
+keep mid clo_ind mrch_sub_brnd_id mrch_sub_brnd_nm mrch_brnd_id suggested_brand action_2 comments mrch_corp_id mrch_corp_nm mrch_cglm_id mrch_cglm_nm
+brnd_rl_fzy_final record_type sub_brand_change trnsfrm_dt min brnd_id_cur brnd_nm_cur brnd_rl_cur brnd_id_exp brnd_nm_exp brnd_rl_exp eff_dt_cur eff_dt_exp
+exp_dt_cur exp_dt_exp bus_ovrrd_ind_mp_cur bus_ovrrd_ind_msb_cur bus_ovrrd_ind_mb_cur bus_ovrrd_ind_mp_exp bus_ovrrd_ind_msb_exp bus_ovrrd_ind_mb_exp 
+mrch_nm alt_mrch_nm final_score final_brand_src fuzzy_match lst_stlmt_dt lst_auth_dt lst_aprv_auth_dt open_dt clse_dt adr_ln_1_txt adr_ln_2_txt adr_ln_3_txt
+cty_nm pstl_cde st_or_sectn_cde cntry_cde date_completed worked_by input_string1 input_String2
+mrch_nm_monge_lev1 alt_mrch_nm_monge_lev1 mrch_nm_levensim1 alt_mrch_nm_levensim1 mrch_nm_monge_jaro1 alt_mrch_nm_monge_jaro1 mrch_nm_ext_jacc1 alt_mrch_nm_ext_jacc1
+mrch_nm_monge_lev alt_mrch_nm_monge_lev mrch_nm_levensim alt_mrch_nm_levensim mrch_nm_monge_jaro alt_mrch_nm_monge_jaro mrch_nm_ext_jacc alt_mrch_nm_ext_jacc
+EM_CLASSIFICATION EM_EVENTPROBABILITY;
+rename EM_EVENTPROBABILITY=prob_suggested_brand EM_CLASSIFICATION=pred_suggested_brand;
+run;
+/*data test1;*/
+/*set test1;*/
+/*if pred_suggested_brand=0 and action_2='NC' then value=1;*/
+/*else if pred_suggested_brand=1 and action_2='M' then value=1;*/
+/*else value=0;*/
+/*run;*/
+/**/
+/*proc freq data=test1;*/
+/*tables value;*/
+/*run;*/
+/**/
+/*data decided_test_acc;*/
+/*set decided_test;*/
+/*if forced_decision='M'and action_2='M' then value=1;*/
+/*if forced_decision='M'and action_2='NC' then value=0;*/
+/*if forced_decision='NC' and action_2='NC' then value=1;*/
+/*if forced_decision='NC' and action_2='M' then value=0;*/
+/*drop forced_decision;*/
+/*run;*/
+/**/
+/*proc freq data=decided_test_acc;*/
+/*tables value;*/
+/*run;*/
+/*===================================================BLOCK 5 DDF CREATION====================================================*/
+/*====================================Code Synopsis==============================================*/
+/*This code will remove all the unwanted columns and keep only the columns present originally in the same order*/
+/*It will also append the two datasets without unknowns and only unknowns into one.*/
+/*The last part of code will generate an excel file with three sheets:one with higher probability of being brnd_nm_cur,*/
+/*one with higher probability of being suggested_brand and the last sheet will contain the records that should be reviewed manually*/
+/*================================END OF CODE SYNOPSIS==========================================*/
+/*keeping only desired columns in dataset without unknowns*/
+data test1order;
+set test1 ;
+keep mid clo_ind mrch_sub_brnd_id mrch_sub_brnd_nm mrch_brnd_id suggested_brand action_2 comments mrch_corp_id mrch_corp_nm mrch_cglm_id mrch_cglm_nm
+brnd_rl_fzy_final record_type sub_brand_change trnsfrm_dt min brnd_id_cur brnd_nm_cur brnd_rl_cur brnd_id_exp brnd_nm_exp brnd_rl_exp eff_dt_cur eff_dt_exp
+exp_dt_cur exp_dt_exp bus_ovrrd_ind_mp_cur bus_ovrrd_ind_msb_cur bus_ovrrd_ind_mb_cur bus_ovrrd_ind_mp_exp bus_ovrrd_ind_msb_exp bus_ovrrd_ind_mb_exp 
+mrch_nm alt_mrch_nm final_score final_brand_src fuzzy_match lst_stlmt_dt lst_auth_dt lst_aprv_auth_dt open_dt clse_dt adr_ln_1_txt adr_ln_2_txt adr_ln_3_txt
+cty_nm pstl_cde st_or_sectn_cde cntry_cde date_completed worked_by prob_suggested_brand pred_suggested_brand;
+run;
+/*rearranging the columns in the order present originally*/
+data test1order;
+retain mid clo_ind mrch_sub_brnd_id mrch_sub_brnd_nm mrch_brnd_id suggested_brand action_2 comments mrch_corp_id mrch_corp_nm mrch_cglm_id mrch_cglm_nm
+brnd_rl_fzy_final record_type sub_brand_change trnsfrm_dt min brnd_id_cur brnd_nm_cur brnd_rl_cur brnd_id_exp brnd_nm_exp brnd_rl_exp eff_dt_cur eff_dt_exp
+exp_dt_cur exp_dt_exp bus_ovrrd_ind_mp_cur bus_ovrrd_ind_msb_cur bus_ovrrd_ind_mb_cur bus_ovrrd_ind_mp_exp bus_ovrrd_ind_msb_exp bus_ovrrd_ind_mb_exp 
+mrch_nm alt_mrch_nm final_score final_brand_src fuzzy_match lst_stlmt_dt lst_auth_dt lst_aprv_auth_dt open_dt clse_dt adr_ln_1_txt adr_ln_2_txt adr_ln_3_txt
+cty_nm pstl_cde st_or_sectn_cde cntry_cde date_completed worked_by prob_suggested_brand pred_suggested_brand;
+set test1order;
+run;
+　
+/*keeping only desired columns in dataset with only unknowns*/
+data test2order;
+set test2;
+keep mid clo_ind mrch_sub_brnd_id mrch_sub_brnd_nm mrch_brnd_id suggested_brand action_2 comments mrch_corp_id mrch_corp_nm mrch_cglm_id mrch_cglm_nm
+brnd_rl_fzy_final record_type sub_brand_change trnsfrm_dt min brnd_id_cur brnd_nm_cur brnd_rl_cur brnd_id_exp brnd_nm_exp brnd_rl_exp eff_dt_cur eff_dt_exp
+exp_dt_cur exp_dt_exp bus_ovrrd_ind_mp_cur bus_ovrrd_ind_msb_cur bus_ovrrd_ind_mb_cur bus_ovrrd_ind_mp_exp bus_ovrrd_ind_msb_exp bus_ovrrd_ind_mb_exp 
+mrch_nm alt_mrch_nm final_score final_brand_src fuzzy_match lst_stlmt_dt lst_auth_dt lst_aprv_auth_dt open_dt clse_dt adr_ln_1_txt adr_ln_2_txt adr_ln_3_txt
+cty_nm pstl_cde st_or_sectn_cde cntry_cde date_completed worked_by prob_suggested_brand pred_suggested_brand;
+run;
+　
+/*rearranging the columns in the order present originally*/
+data test2order;
+retain mid clo_ind mrch_sub_brnd_id mrch_sub_brnd_nm mrch_brnd_id suggested_brand action_2 comments mrch_corp_id mrch_corp_nm mrch_cglm_id mrch_cglm_nm
+brnd_rl_fzy_final record_type sub_brand_change trnsfrm_dt min brnd_id_cur brnd_nm_cur brnd_rl_cur brnd_id_exp brnd_nm_exp brnd_rl_exp eff_dt_cur eff_dt_exp
+exp_dt_cur exp_dt_exp bus_ovrrd_ind_mp_cur bus_ovrrd_ind_msb_cur bus_ovrrd_ind_mb_cur bus_ovrrd_ind_mp_exp bus_ovrrd_ind_msb_exp bus_ovrrd_ind_mb_exp 
+mrch_nm alt_mrch_nm final_score final_brand_src fuzzy_match lst_stlmt_dt lst_auth_dt lst_aprv_auth_dt open_dt clse_dt adr_ln_1_txt adr_ln_2_txt adr_ln_3_txt
+cty_nm pstl_cde st_or_sectn_cde cntry_cde date_completed worked_by prob_suggested_brand pred_suggested_brand;
+set test2order;
+run;
+　
+/*Create the records to be reviewed in one dataset*/
+data rec_to_review_forest;
+set test1order;
+if prob_suggested_brand >=0.4 and prob_suggested_brand <0.7 ;
+run;
+data records_to_review_svm;
+set test2order;
+if prob_suggested_brand>=0.3;
+run;
+data records_to_review;
+set rec_to_review_forest records_to_review_svm;
+run;
+data rec_highprob_bnc_svm;
+set test2order;
+if prob_suggested_brand<0.3;
+run;
+　
+/*Create records with good probablity of being suggested brand*/
+data rec_highprob_sb_forest;
+set test1order;
+if prob_suggested_brand>=0.7;
+run;
+/*pulling records from decided_test which should be mapped to suggested brand*/
+data rec_highprob_sb_decided_test;
+set decided_test;
+if forced_decision='M';
+drop forced_decision;
+run;
+data rec_highprob_suggestedbrand;
+set rec_highprob_sb_decided_test rec_highprob_sb_forest;
+run;
+　
+/*Create records with good probablity of being brnd_nm_cur*/
+data rec_highprob_bnc_forest;
+set test1order;
+if prob_suggested_brand <0.4 ;
+run;
+/*pulling records from already decided_test which should be mapped to brandnmcur*/
+data rec_highprob_bnc_decided_test;
+set decided_test;
+if forced_decision='NC';
+drop forced_decision;
+run;
+data rec_highprob_brndnmcur;
+set rec_highprob_bnc_forest rec_highprob_bnc_svm rec_highprob_bnc_decided_test ;
+run;
+/*The following xlsx should be placed where DDF-SAS-CODE generates csv file daily. The outfile path should be changed accordingly*/
+/*libname rk "/DATA/MRM_VAL-NOBKUP/rkrish2";*/
+%let date=%sysfunc(putn(%sysfunc(today()),yymmddn8.));
+proc export data=records_to_review outfile="&loc_exp.DDF &date..xlsx" dbms=xlsx;
+sheet=records_to_review;
+run;
+proc export data=rec_highprob_suggestedbrand outfile="&loc_exp.DDF &date..xlsx" dbms=xlsx;
+sheet=rec_highprob_suggestedbrand;
+run;
+proc export data=rec_highprob_brndnmcur outfile="&loc_exp.DDF &date..xlsx" dbms=xlsx;
+sheet=rec_highprob_brndnmcur;
+run;
