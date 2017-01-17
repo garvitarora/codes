@@ -1,0 +1,111 @@
+library(plyr)
+library(dplyr)
+
+
+
+
+#make changes in a1 and b1
+data<-ds1
+
+a1<-c("generic_GEN_",
+      "generic_MSB_",
+      "generic_SSB_",
+      "generic_NA_",
+      "maintenance_N_",
+      "maintenance_NA_",
+      "maintenance_Y_",
+      "speciality_blank_",
+      "speciality_N_",
+      "speciality_NA_",
+      "speciality_Y_"
+)
+a1<-as.data.frame(a1)
+a1$a1<-as.character(a1$a1)
+
+
+
+b_1<-c("q2","q3","q4","q4","q3","h2")
+b_2<-c("q1","q2","q3","q2","q1","h1")
+b1<-data.frame(b_1,b_2)
+b1$b_1<-as.character(b1$b_1)
+b1$b_2<-as.character(b1$b_2)
+remove(b_1,b_2)
+
+d1<-c("freq","amount","quantity")
+d1<-as.data.frame(d1)
+d1$d1<-as.character(d1$d1)
+
+
+remove(check_list)
+check_list<-list()
+for(i in 1:nrow(a1))
+{
+
+  col1<-a1[i,1]
+  col1<-paste(col1,"|customer_master_id",sep="")
+  #sel_cols<-select(data,customer_master_id,contains(col1)) 
+  sel_cols<-  data[,grepl(col1 , colnames(data))]
+  names(sel_cols)
+  sel_cols1 <- sel_cols[ , !grepl( "avg" , names( sel_cols ) ) ]
+  names(sel_cols1)
+  
+  for(j in 1:nrow(d1))
+  {
+    col2<-d1[j,1]
+    col2<-paste(col2,"|customer_master_id",sep="")
+    sel_cols2<-  sel_cols1[,grepl(col2, colnames(sel_cols1))]
+    names(sel_cols2)
+    for(k in 1:nrow(b1))
+    {
+    
+      col3<-b1[k,1]
+      col4<-b1[k,2]
+      final_col3<-paste(col3,"|customer_master_id",sep="")
+      final_col4<-paste(col4,"|customer_master_id",sep="")
+      sel_cols3<- sel_cols2[,grepl(final_col3, colnames(sel_cols2))]
+      names(sel_cols3)
+      colnames(sel_cols3)[2]<-c("first")
+      names(sel_cols3)
+      if(ncol(sel_cols3)>2)
+      {check_list<-rbind(check_list,paste(a1[i,1],d1[j,1],b1[k,1],sep=""))}
+      sel_cols4<- sel_cols2[,grepl(final_col4, colnames(sel_cols2))]      
+      names(sel_cols4)
+      colnames(sel_cols4)[2]<-c("second")
+      names(sel_cols4)
+      if(ncol(sel_cols4)>2)
+      {check_list<-rbind(check_list,paste(a1[i,1],d1[j,1],b1[k,2],sep=""))}
+      
+      
+      sel_cols3$new_col<-(sel_cols3$first-sel_cols4$second)/(sel_cols4$second + 1)
+      names(sel_cols3)
+      
+      colnames(sel_cols3)[ncol(sel_cols3)]<-paste(a1[i,1],d1[j,1],b1[j,1],b1[j,2],sep="_")
+      
+      if(i==1 && j==1 && k==1)
+        { sel_cols3<-sel_cols3[,c(1,3)] }
+      else
+        { sel_cols3<-sel_cols3[,3] }
+      
+      if(k==1)
+      {final_table_v1<-sel_cols3
+      final_table_v1<-as.data.frame(final_table_v1)
+      colnames(final_table_v1)[ncol(final_table_v1)]<-paste(a1[i,1],d1[j,1],b1[k,1],b1[k,2],sep="_")
+      }
+      if(k!=1)
+      {
+        final_table_v1<-cbind(final_table_v1,sel_cols3)
+        colnames(final_table_v1)[ncol(final_table_v1)]<-paste(a1[i,1],d1[j,1],b1[k,1],b1[k,2],sep="_")
+      }
+    }
+    if(j==1)
+    {final_table_v2<-final_table_v1}
+    if(j!=1)
+    {final_table_v2<-cbind(final_table_v2,final_table_v1)}
+    
+  }
+  if(i==1)
+  {final_table_v3<-final_table_v2}
+  if(i!=1)
+  {final_table_v3<-cbind(final_table_v3,final_table_v2)}
+}
+
