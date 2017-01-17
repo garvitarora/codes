@@ -1,0 +1,1777 @@
+shinyServer(function(input, output,session) {
+  
+  values <- reactiveValues(default = 0)
+  values1 <- reactiveValues(default = 0)
+  
+  observe({
+    
+    # input<-list();input$province<-"All";input$industry<-c("Mining","Services");input$ci<-c("Enzymes","Cancer","Birth Control")
+    i1<-input$industry;i2<-input$size;i3<-input$sponsor;i4<-input$ci;i5<-input$province
+    if(is.null(input$industry)){i1<-"All"}
+    if(is.null(input$size)){i2<-"All"}
+    if(is.null(input$sponsor)){i3<-"All"}
+    if(is.null(input$ci)){i4<-"All"}
+    if(is.null(input$province)){i5<-"All"}
+    
+    temp<-list();temp$industry<-i1;temp$size<-i2;temp$sponsor<-i3;temp$ci<-i4;temp$province<-i5
+    
+    list_loop<-list()
+    list_loop$names<-c("list_loop$industry","list_loop$size","list_loop$sponsor","list_loop$ci","list_loop$province")
+    list_loop$industry<-c("size","sponsor","ci","province")
+    list_loop$size<-c("industry","sponsor","ci","province")
+    list_loop$sponsor<-c("industry","size","ci","province")
+    list_loop$ci<-c("industry","size","sponsor","province")
+    list_loop$province<-c("industry","size","sponsor","ci")
+    
+    for(i in 1:length(list_loop$names))
+    {
+      
+      var1<-"data %>% filter("
+      list<-eval(parse(text=list_loop$names[i]))
+      name_of_col<-substr(list_loop$names[i],11,nchar(list_loop$names[i]))
+      var2<-NULL
+      var_for_ci<-NULL
+      for(j in list)
+      {
+        if( j != "ci")
+        {variable1<-NULL
+        variable1<-paste("temp$",j,sep="")
+        variable2<-eval(parse(text=variable1))
+        if(!("All" %in% variable2))
+        {var2<-paste(var2,j,"%in%","input$",j,",",sep="")}
+        variable1<-NULL}
+        if(j=="ci")
+        {
+          variable1<-NULL
+          variable1<-paste("temp$",j,sep="")
+          variable2<-eval(parse(text=variable1))
+          var_for_ci3<-NULL
+          if(!("All" %in% variable2))
+          {
+            
+            for(k in 1:length(variable2))
+            {
+              var_for_ci<-paste(var_for_ci,variable2[k],"|",sep="")  
+            }
+            var_for_ci2<-substr(var_for_ci,1,nchar(var_for_ci)-1)
+            var_for_ci3<-paste(" %>% filter(grepl('",var_for_ci2,"',",j,"))",sep="")
+          }
+        }
+        
+      }
+      # var2
+      if(is.null(var2)){var2<-")"}
+      # var_for_ci3
+      if(is.null(var_for_ci3)){var_for_ci3<-" %>% filter() "}
+      var3<-substr(var2,1,nchar(var2)-1)
+      # var3
+      var4<-paste(var1,var3,")",sep="")
+      # var4
+      if(name_of_col!="ci")
+      {
+        var5<-paste(var4,var_for_ci3," %>% select(",name_of_col,") %>% unique()",sep="")
+        # var5
+        assign(paste("list_for",name_of_col,sep="_"),eval(parse(text=var5)))
+      }
+      if(name_of_col=="ci")
+      {
+        var5<-paste(var4," %>% select(",name_of_col,")",sep="")
+        list_for_ci_raw<-eval(parse(text=var5))
+        list_for_ci<-unique(unlist(strsplit(as.character(list_for_ci_raw$ci), "[.]")))
+        list_for_ci<-as.data.frame(list_for_ci)
+        colnames(list_for_ci)[1]<-"ci"
+      }
+    }
+    
+    j1<-input$industry;j2<-input$size;j3<-input$sponsor;j4<-input$ci;j5<-input$province
+    if("All" %in% input$industry){j1<-"All"}
+    if("All" %in% input$size){j2<-"All"}
+    if("All" %in% input$sponsor){j3<-"All"}
+    if("All" %in% input$ci){j4<-"All"}
+    if("All" %in% input$province){j5<-"All"}
+    updateSelectizeInput(session, "industry",
+                         choices = c("All",sort(as.character(list_for_industry$industry),decreasing = F)),
+                         selected = j1)
+    updateSelectizeInput(session,"size",
+                         choices=c("All",sort(as.character(unique(list_for_size$size)),decreasing = F)),
+                         selected=j2)
+    updateSelectizeInput(session,"sponsor",
+                         choices=c("All",sort(as.character(unique(list_for_sponsor$sponsor)),decreasing = F)),
+                         selected=j3)
+    updateSelectizeInput(session,"ci",
+                         choices=c("All",sort(as.character(unique(list_for_ci$ci)),decreasing = F)),
+                         selected=j4)
+    updateSelectizeInput(session,"province",
+                         choices=c("All",sort(as.character(unique(list_for_province$province)),decreasing = F)),
+                         selected=j5)
+    
+  })
+  
+  observeEvent(input$reset, {
+    updateSelectizeInput(session, "industry",
+                         choices=c("All",sort(as.character(unique(data$industry)),decreasing = F)),
+                         selected = NULL)
+    updateSelectizeInput(session,"size",
+                         choices=c("All",sort(as.character(unique(data$size)),decreasing = F)),
+                         selected=NULL)
+    updateSelectizeInput(session,"sponsor",
+                         choices=c("All",sort(as.character(unique(data$sponsor)),decreasing = F)),
+                         selected=NULL)
+    updateSelectizeInput(session,"ci",
+                         choices=c("All",sort(as.character(unique(unlist(strsplit(as.character(data$ci), "[.]")))),decreasing = F)),
+                         selected=NULL)
+    updateSelectizeInput(session,"province",
+                         choices=c("All",sort(as.character(unique(data$province)),decreasing = F)),
+                         selected=NULL)
+  })
+  
+  
+  observeEvent(input$submit,{
+    values$default <- input$submit
+    values1$default<- 0
+  })
+  observeEvent(input$submit1,{
+    values1$default <- input$submit1
+  })
+  
+  data_fil1<-eventReactive(input$submit,{
+    # input<-list()
+    
+    i1<-input$industry;i2<-input$size;i3<-input$sponsor;i4<-input$ci;i5<-input$province
+    if(is.null(input$industry)){i1<-"All"}
+    if(is.null(input$size)){i2<-"All"}
+    if(is.null(input$sponsor)){i3<-"All"}
+    if(is.null(input$ci)){i4<-"All"}
+    if(is.null(input$province)){i5<-"All"}
+    
+    fil_for_industry<-NULL
+    if(!('All' %in% i1))
+    {fil_for_industry<-"industry %in% input$industry"}
+    
+    fil_for_size<-NULL
+    if(!('All' %in% i2))
+    {fil_for_size<-"size %in% input$size"}
+    
+    fil_for_sponsor<-NULL
+    if(!('All' %in% i3))
+    {fil_for_sponsor<-"sponsor %in% input$sponsor"}
+    
+    # input<-list()
+    # input$ci<-c("Acne","Allergy")
+    fil_for_ci<-NULL
+    fil_for_ci3<-NULL
+    if(!('All' %in% i4))
+    {
+      for(k in 1:length(input$ci))
+      {
+        fil_for_ci<-paste(fil_for_ci,input$ci[k],"|",sep="")  
+      }
+      fil_for_ci2<-substr(fil_for_ci,1,nchar(fil_for_ci)-1)
+      fil_for_ci3<-paste(" grepl('",fil_for_ci2,"',ci)",sep="")
+      
+    }
+    
+    fil_for_province<-NULL
+    if(!('All' %in% i5))
+    {fil_for_province<-"province %in% input$province"}
+    
+    all_fil<-paste("data %>% filter(",fil_for_industry,") %>% filter(",fil_for_size,") %>% filter (",
+                   fil_for_sponsor,") %>% filter(",fil_for_ci3,") %>% filter(", fil_for_province,")")
+    eval(parse(text=all_fil))
+    # data_fil1<-eval(parse(text=all_fil))
+  })
+  
+  
+  output$text1 <- renderText({
+    if(values$default==0)
+    {format(nrow(data),big.mark=",",scientific = FALSE)}
+    else
+    {format(nrow(data_fil1()),big.mark = ",",scientific = F)}
+  })
+  
+  output$text2 <- renderText({
+    if(values$default==0)
+    {
+      total_num_of_member_of_complete_dataset<-nrow(data)
+      v<-(nrow(data))/total_num_of_member_of_complete_dataset*100
+      v<-format(round(v,digits = 0),big.mark = ",",scientific = F)
+      paste(v,"%",sep="")
+    }
+    else
+    {
+      total_num_of_member_of_complete_dataset<-nrow(data)
+      v<-(nrow(data_fil1()))/total_num_of_member_of_complete_dataset*100
+      v<-format(round(v,digits = 0),big.mark = ",",scientific = F)
+      paste(v,"%",sep="")
+    }
+  })
+  
+  output$text3<-renderText({
+    if(values$default==0)
+    {
+      sum<-sum(data$total_amount_submitted)
+      sum<-round(sum,0)
+      paste("$",format(sum,big.mark = ",",scientific = F),sep="")
+    }
+    else
+    {
+      sum<-sum(data_fil1()$total_amount_submitted)
+      sum<-round(sum,0)
+      paste("$",format(sum,big.mark = ",",scientific = F),sep="")
+    }
+  })
+  
+  output$text4<-renderText({
+    if(values$default==0)
+    {
+      total_amount_submitted_of_complete_dataset<-sum(data$total_amount_submitted)
+      sum<-sum(data$total_amount_submitted)/(total_amount_submitted_of_complete_dataset)*100
+      sum<-format(round(sum,0),big.mark = ",",scientific = F)
+      paste(sum,"%",sep="")
+    }
+    else
+    {
+      total_amount_submitted_of_complete_dataset<-sum(data$total_amount_submitted)
+      sum<-sum(data_fil1()$total_amount_submitted)/(total_amount_submitted_of_complete_dataset)*100
+      sum<-format(round(sum,0),big.mark = ",",scientific = F)
+      paste(sum,"%",sep="")
+    }
+  })
+  
+  table_for_plot1<-reactive({
+    if(values$default==0)
+    {
+      table_for_plot1<-data %>% group_by(parent) %>% summarise_each(funs(sum,n()),total_amount_submitted) %>%
+        complete(parent,fill = list(sum = 0,n=0)) %>%
+        mutate(percentage_amount=round(sum/sum(sum)*100,0),percentage_members=round(n/sum(n)*100,0)) %>%
+        mutate(hov_text1=paste("Total amount value is",format(round(sum,0),big.mark=",",scientific=F)),hov_text2=paste("Number of members is ",format(n,big.mark=",",scientific=F),sep=""))
+    }
+    else
+    {
+      table_for_plot1<-data_fil1() %>% group_by(parent) %>% summarise_each(funs(sum,n()),total_amount_submitted) %>%
+        complete(parent,fill = list(sum = 0,n=0)) %>%
+        mutate(percentage_amount=round(sum/sum(sum)*100,0),percentage_members=round(n/sum(n)*100,0)) %>%
+        mutate(hov_text1=paste("Total amount value is",format(round(sum,0),big.mark=",",scientific=F)),hov_text2=paste("Number of members is ",format(n,big.mark=",",scientific=F),sep=""))
+    }
+    
+    lut<-c( "MS1_18-44_M"=1, "MS2_18-44_F"=2,
+            "MS3_45-65_blue-collared"=3,"MS4_45-64_white-collared"=4,
+            "MS5_45-64_PA"=5, "MS6_moreThan65"=6)
+    table_for_plot1$parent<-as.character(table_for_plot1$parent)
+    table_for_plot1$row_order<-lut[table_for_plot1$parent]
+    table_for_plot1<-table_for_plot1 %>% arrange(desc(row_order))
+    
+    table_for_plot1$parent <- factor(table_for_plot1$parent, levels = table_for_plot1$parent)
+    table_for_plot1
+  })
+  
+  output$trendPlot_1 <- renderPlotly({
+    
+    p1 <- plot_ly(table_for_plot1(),x = ~percentage_members, y = ~parent, type = 'bar',marker = list(color = 'rgb(139,173,204)'),hoverinfo='text',text=~paste("#Members: ",trimws(format(n,big.mark =",",scientific = F)),sep=""), orientation = 'h') %>%
+      layout(xaxis = list(title="",zeroline = FALSE,showgrid=F,showline = F,showticklabels = F),
+             yaxis = list(title="",zeroline = T,showline = T,showticklabels = F),
+             annotations = list(x = ~percentage_members, y = ~parent,text=~paste(percentage_members,"%",sep=""), xanchor='left',yanchhor='bottom',showarrow=F,xref='x',yref='y'),margin = list(t=0,b=0,l=0))%>%
+      layout(xaxis=list(fixedrange=TRUE)) %>% layout(yaxis=list(fixedrange=TRUE))
+    p1
+  })
+  
+  output$trendPlot_2 <- renderPlotly({
+    
+    p2 <- plot_ly(table_for_plot1(),x = ~percentage_amount, y = ~parent, type = 'bar', marker = list(color = 'rgb(144,201,141)'),hoverinfo='text',text=~paste("Claim Amount: $",trimws(format(round(sum,0),big.mark = ",",scientific = F)),sep=""), orientation = 'h') %>%
+      layout(xaxis = list(title="",zeroline = FALSE,showgrid=F,showline = F,showticklabels = F),
+             yaxis = list(title="",zeroline = T,showline = T,showticklabels = F),
+             annotations = list(x = ~percentage_amount, y = ~parent,text=~paste(percentage_amount,"%",sep=""), xanchor='left',yanchhor='bottom',showarrow=F,xref='x',yref='y'), margin = list(t=0,b=0,l=0))%>%
+      layout(xaxis=list(fixedrange=TRUE)) %>% layout(yaxis=list(fixedrange=TRUE))
+    p2
+  })
+  
+  table_for_MS<-reactive({
+    if(values$default==0)
+    {
+      pre_table_for_plot2<-data %>% group_by(parent,segment) %>% summarise_each(funs(sum,n()),total_amount_submitted) %>%
+        complete(parent,segment, fill= list(sum = 0,n=0))
+    }
+    else
+    {
+      pre_table_for_plot2<-data_fil1() %>% group_by(parent,segment) %>% summarise_each(funs(sum,n()),total_amount_submitted) %>%
+        complete(parent,segment, fill= list(sum = 0,n=0))
+    }
+    
+    table_for_plot2<-pre_table_for_plot2[1:60,]
+    
+    
+    # change the order of segments here
+    lut<-c("Specialty Drug Claimants"=1,"Mental Health Claimants"=2,
+           "Detruding Health Claimants"=3,"Perennial Lifestyle Claimants"=4,
+           "Sporadically Sick Claimants"=5,"Healthy and Vigilant"=6,
+           "On the bench"=7,"High Cost Detruding Health Claimants"=8,
+           "Low Cost, Lifestyle claimants"=9,"Non Claimants"=10)
+    table_for_plot2$segment<-as.character(table_for_plot2$segment)
+    table_for_plot2$row_numbers<-lut[table_for_plot2$segment]
+    table_for_plot2$parent<-as.character(table_for_plot2$parent)
+    
+    overall_swtch_amt<-sum(table_for_plot2$sum)
+    overall_swtch_members<-sum(table_for_plot2$n)
+    
+    all_parent<-unique(table_for_plot2$parent)
+    all_parent<-as.data.frame(all_parent)
+    colnames(all_parent)[1]<-"parent"
+    for(l in 1:nrow(all_parent))
+    {
+      
+      subset_table<-table_for_plot2 %>% filter(parent==all_parent[l,1])
+      
+      if(sum(subset_table$sum)==0){
+        if(sum(subset_table$n)==0){
+          subset_table<-subset_table%>%mutate(percentage_amount_parent=sum,percentage_members_parent=n)
+        }
+        if(sum(subset_table$n)!=0){
+          subset_table<-subset_table%>%mutate(percentage_amount_parent=sum,percentage_members_parent=round(n/sum(n)*100,0)) 
+        }
+        
+      }
+      
+      if(sum(subset_table$sum)!=0){
+        subset_table<-subset_table%>%mutate(percentage_amount_parent=round(sum/sum(sum)*100,0),percentage_members_parent=round(n/sum(n)*100,0))
+      }
+      
+      if(overall_swtch_amt==0){
+        if(overall_swtch_members==0)
+        {subset_table<-subset_table %>% mutate(percentage_amount_overall=sum,percentage_members_overall=n)}
+        if(overall_swtch_members!=0)
+        {subset_table<-subset_table %>% mutate(percentage_amount_overall=sum,percentage_members_overall=round(n/overall_swtch_members*100,0))}
+      }
+      if(overall_swtch_amt!=0)
+      {subset_table<-subset_table %>% mutate(percentage_amount_overall=round(sum/overall_swtch_amt*100,0),percentage_members_overall=round(n/overall_swtch_members*100,0))}
+      
+      # glimpse(subset_table)
+      subset_table1<-left_join(x=subset_table,y=final_avg_table,by=c("parent","segment"))
+      # glimpse(subset_table1)
+      
+      subset_table1<-subset_table1 %>% arrange(desc(row_numbers))
+      subset_table1$segment<-factor(subset_table1$segment, levels=subset_table1$segment)
+      
+      if(l==1)
+      {table_for_MS<-subset_table1}
+      if(l!=1)
+      {table_for_MS<-rbind(table_for_MS,subset_table1)}
+      
+    }
+    
+    table_for_MS<-table_for_MS %>% mutate(deviation_amt_par=percentage_amount_parent-avg_amt_percent_parent,
+                                          deviation_mem_par=percentage_members_parent-avg_memb_percent_parent,
+                                          deviation_amt_overall=percentage_amount_overall-avg_amt_percent_overall,
+                                          deviation_mem_overall=percentage_members_overall-avg_memb_percent_overall)
+    table_for_MS
+    
+  })
+  
+  output$trendPlot1_MS1 <- renderPlotly({
+    
+    table_for_plot<-table_for_MS() %>% filter(parent=='MS1_18-44_M') %>%arrange(desc(row_numbers))
+    
+    table_for_plot<-table_for_plot[c(1,5:10),]
+    
+    table_for_plot$segment<-factor(table_for_plot$segment, levels=table_for_plot$segment)
+    if(input$radio==TRUE)
+    {
+      p1<-plot_ly(table_for_plot,showlegend=F) %>%
+        add_trace(x=~percentage_members_parent,y= ~segment,type='bar',name="Members", marker = list(color = 'rgb(139,173,204)'),hoverinfo='text',text=~trimws(format(n,big.mark=","))) %>%
+        layout(annotations=list(y=~segment,x=~percentage_members_parent,text=~paste(percentage_members_parent,"%",sep=""),showarrow=FALSE,xanchor="left",yanchor="top",xref='x',yref='y')) %>%
+        add_trace(x = ~percentage_amount_parent,y=~segment,type='bar',name='Amount', marker = list(color = 'rgb(144,201,141)'),hoverinfo='text',text=~paste("$",trimws(format(round(sum,0),big.mark=",")),sep="")) %>%
+        layout(annotations=list(y=~segment,x=~percentage_amount_parent,text=~paste(percentage_amount_parent,"%",sep=""),showarrow=FALSE,xanchor="left",yanchor="bottom",xref='x',yref='y')) %>%
+        layout(xaxis = list(title="",zeroline=T,showgrid=FALSE,showticklabels = FALSE),
+               yaxis = list(title="",showticklabels = F,tickfont=list(size=9),categoryoder="array",categoryarray=seg_order),margin = list(l=0,t=0,b=0))%>%
+        layout(xaxis=list(fixedrange=TRUE)) %>% layout(yaxis=list(fixedrange=TRUE)) %>% layout( hovermode="closest" )
+      # p1  
+    }
+    
+    if(input$radio==FALSE)
+    {
+      p1<-plot_ly(table_for_plot,showlegend=F) %>%
+        add_trace(x=~percentage_members_overall,y= ~segment,type='bar',name="Members", marker = list(color = 'rgb(139,173,204)'),hoverinfo='text',text=~trimws(format(n,big.mark=",")),orientation='h') %>%
+        layout(annotations=list(y=~segment,x=~percentage_members_overall,text=~paste(percentage_members_overall,"%",sep=""),showarrow=FALSE,xanchor="left",yanchor="top",xref='x',yref='y')) %>%
+        add_trace(x = ~percentage_amount_overall,y=~segment,type='bar',name='Amount', marker = list(color = 'rgb(144,201,141)'),hoverinfo='text',text=~paste("$",trimws(format(round(sum,0),big.mark=",")),sep=""),orientation='h') %>%
+        layout(annotations=list(y=~segment,x=~percentage_amount_overall,text=~paste(percentage_amount_overall,"%",sep=""),showarrow=FALSE,xanchor="left",yanchor="bottom",xref='x',yref='y')) %>%
+        layout(xaxis = list(title="",zeroline=T,showgrid=FALSE,showticklabels = FALSE),
+               yaxis = list(title="",showticklabels = F,tickfont=list(size=9),categoryoder="array",categoryarray=seg_order),margin = list(l=0,t=0,b=0))%>%
+        layout(xaxis=list(fixedrange=TRUE)) %>% layout(yaxis=list(fixedrange=TRUE)) %>% layout( hovermode="closest" )
+      # p1  
+    }
+    p1
+  })
+  
+  output$dev_table_MS1<-renderUI({
+    
+    table_for_plot<-table_for_MS() %>% filter(parent=='MS1_18-44_M') %>%arrange(row_numbers)
+    
+    table_for_plot[c(7:9),c(15:19)]<-"NA"
+    
+    table_for_plot$segment<-factor(table_for_plot$segment, levels=table_for_plot$segment)
+    if(input$radio==TRUE)
+    {
+      for(m in 1:10)
+      {
+        assign(paste("amt_txt",m,sep=""),table_for_plot[m,"deviation_amt_par"])
+        assign(paste("mem_txt",m,sep=""),table_for_plot[m,"deviation_mem_par"])
+      }
+    }
+    if(input$radio==FALSE)
+    {
+      for(m in 1:10)
+      {
+        assign(paste("amt_txt",m,sep=""),table_for_plot[m,"deviation_amt_overall"])
+        assign(paste("mem_txt",m,sep=""),table_for_plot[m,"deviation_mem_overall"])
+      }
+    }
+    
+final_txt<-paste("tags$table(class = 'devInternalTable',tags$tr(tags$td(class = 'amount','",amt_txt1,"'),tags$td(class = 'members','",mem_txt1,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt2,"'),tags$td(class = 'members','",mem_txt2,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt3,"'),tags$td(class = 'members','",mem_txt3,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt4,"'),tags$td(class = 'members','",mem_txt4,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt5,"'),tags$td(class = 'members','",mem_txt5,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt6,"'),tags$td(class = 'members','",mem_txt6,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt7,"'),tags$td(class = 'members','",mem_txt7,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt8,"'),tags$td(class = 'members','",mem_txt8,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt9,"'),tags$td(class = 'members','",mem_txt9,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt10,"'),tags$td(class = 'members','",mem_txt10,
+                   "')))",sep="")
+    eval(parse(text=final_txt))
+    
+  })
+  
+  output$trendPlot1_MS2 <- renderPlotly({
+    
+    table_for_plot<-table_for_MS() %>% filter(parent=='MS2_18-44_F') %>%arrange(desc(row_numbers))
+    
+    table_for_plot<-table_for_plot[c(1,4:6,8:10),]
+    
+    table_for_plot$segment<-factor(table_for_plot$segment, levels=table_for_plot$segment)
+    if(input$radio==TRUE)
+    {
+      p1<-plot_ly(table_for_plot,showlegend=F) %>%
+        add_trace(x=~percentage_members_parent,y= ~segment,type='bar',name="Members", marker = list(color = 'rgb(139,173,204)'),hoverinfo='text',text=~trimws(format(n,big.mark=","))) %>%
+        layout(annotations=list(y=~segment,x=~percentage_members_parent,text=~paste(percentage_members_parent,"%",sep=""),showarrow=FALSE,xanchor="left",yanchor="top",xref='x',yref='y')) %>%
+        add_trace(x = ~percentage_amount_parent,y=~segment,type='bar',name='Amount', marker = list(color = 'rgb(144,201,141)'),hoverinfo='text',text=~paste("$",trimws(format(round(sum,0),big.mark=",")),sep="")) %>%
+        layout(annotations=list(y=~segment,x=~percentage_amount_parent,text=~paste(percentage_amount_parent,"%",sep=""),showarrow=FALSE,xanchor="left",yanchor="bottom",xref='x',yref='y')) %>%
+        layout(xaxis = list(title="",zeroline=T,showgrid=FALSE,showticklabels = FALSE),
+               yaxis = list(title="",showticklabels = F,tickfont=list(size=9),categoryoder="array",categoryarray=seg_order),margin = list(l=0,t=0,b=0))%>%
+        layout(xaxis=list(fixedrange=TRUE)) %>% layout(yaxis=list(fixedrange=TRUE)) %>% layout( hovermode="closest" )
+      # p1  
+    }
+    
+    if(input$radio==FALSE)
+    {
+      p1<-plot_ly(table_for_plot,showlegend=F) %>%
+        add_trace(x=~percentage_members_overall,y= ~segment,type='bar',name="Members", marker = list(color = 'rgb(139,173,204)'),hoverinfo='text',text=~trimws(format(n,big.mark=",")),orientation='h') %>%
+        layout(annotations=list(y=~segment,x=~percentage_members_overall,text=~paste(percentage_members_overall,"%",sep=""),showarrow=FALSE,xanchor="left",yanchor="top",xref='x',yref='y')) %>%
+        add_trace(x = ~percentage_amount_overall,y=~segment,type='bar',name='Amount', marker = list(color = 'rgb(144,201,141)'),hoverinfo='text',text=~paste("$",trimws(format(round(sum,0),big.mark=",")),sep=""),orientation='h') %>%
+        layout(annotations=list(y=~segment,x=~percentage_amount_overall,text=~paste(percentage_amount_overall,"%",sep=""),showarrow=FALSE,xanchor="left",yanchor="bottom",xref='x',yref='y')) %>%
+        layout(xaxis = list(title="",zeroline=T,showgrid=FALSE,showticklabels = FALSE),
+               yaxis = list(title="",showticklabels = F,tickfont=list(size=9),categoryoder="array",categoryarray=seg_order),margin = list(l=0,t=0,b=0))%>%
+        layout(xaxis=list(fixedrange=TRUE)) %>% layout(yaxis=list(fixedrange=TRUE)) %>% layout( hovermode="closest" )
+      # p1  
+    }
+    p1
+  })
+  
+  output$dev_table_MS2<-renderUI({
+    table_for_plot<-table_for_MS() %>% filter(parent=='MS2_18-44_F') %>%arrange(row_numbers)
+    
+    table_for_plot[c(4,8:9),c(15:19)]<-"NA"
+    
+    table_for_plot$segment<-factor(table_for_plot$segment, levels=table_for_plot$segment)
+    if(input$radio==TRUE)
+    {
+      for(m in 1:10)
+      {
+        assign(paste("amt_txt",m,sep=""),table_for_plot[m,"deviation_amt_par"])
+        assign(paste("mem_txt",m,sep=""),table_for_plot[m,"deviation_mem_par"])
+      }
+    }
+    if(input$radio==FALSE)
+    {
+      for(m in 1:10)
+      {
+        assign(paste("amt_txt",m,sep=""),table_for_plot[m,"deviation_amt_overall"])
+        assign(paste("mem_txt",m,sep=""),table_for_plot[m,"deviation_mem_overall"])
+      }
+    }
+    
+final_txt<-paste("tags$table(class = 'devInternalTable',tags$tr(tags$td(class = 'amount','",amt_txt1,"'),tags$td(class = 'members','",mem_txt1,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt2,"'),tags$td(class = 'members','",mem_txt2,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt3,"'),tags$td(class = 'members','",mem_txt3,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt4,"'),tags$td(class = 'members','",mem_txt4,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt5,"'),tags$td(class = 'members','",mem_txt5,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt6,"'),tags$td(class = 'members','",mem_txt6,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt7,"'),tags$td(class = 'members','",mem_txt7,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt8,"'),tags$td(class = 'members','",mem_txt8,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt9,"'),tags$td(class = 'members','",mem_txt9,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt10,"'),tags$td(class = 'members','",mem_txt10,
+                   "')))",sep="")
+    eval(parse(text=final_txt))
+    
+  })
+  
+  output$trendPlot1_MS3 <- renderPlotly({
+    
+    table_for_plot<-table_for_MS() %>% filter(parent=='MS3_45-65_blue-collared') %>%arrange(desc(row_numbers))
+    
+    table_for_plot<-table_for_plot[c(1,5:10),]
+    
+    table_for_plot$segment<-factor(table_for_plot$segment, levels=table_for_plot$segment)
+    if(input$radio==TRUE)
+    {
+      p1<-plot_ly(table_for_plot,showlegend=F) %>%
+        add_trace(x=~percentage_members_parent,y= ~segment,type='bar',name="Members", marker = list(color = 'rgb(139,173,204)'),hoverinfo='text',text=~trimws(format(n,big.mark=","))) %>%
+        layout(annotations=list(y=~segment,x=~percentage_members_parent,text=~paste(percentage_members_parent,"%",sep=""),showarrow=FALSE,xanchor="left",yanchor="top",xref='x',yref='y')) %>%
+        add_trace(x = ~percentage_amount_parent,y=~segment,type='bar',name='Amount', marker = list(color = 'rgb(144,201,141)'),hoverinfo='text',text=~paste("$",trimws(format(round(sum,0),big.mark=",")),sep="")) %>%
+        layout(annotations=list(y=~segment,x=~percentage_amount_parent,text=~paste(percentage_amount_parent,"%",sep=""),showarrow=FALSE,xanchor="left",yanchor="bottom",xref='x',yref='y')) %>%
+        layout(xaxis = list(title="",zeroline=T,showgrid=FALSE,showticklabels = FALSE),
+               yaxis = list(title="",showticklabels = F,tickfont=list(size=9),categoryoder="array",categoryarray=seg_order),margin = list(l=0,t=0,b=0))%>%
+        layout(xaxis=list(fixedrange=TRUE)) %>% layout(yaxis=list(fixedrange=TRUE)) %>% layout( hovermode="closest" )
+      # p1  
+    }
+    
+    if(input$radio==FALSE)
+    {
+      p1<-plot_ly(table_for_plot,showlegend=F) %>%
+        add_trace(x=~percentage_members_overall,y= ~segment,type='bar',name="Members", marker = list(color = 'rgb(139,173,204)'),hoverinfo='text',text=~trimws(format(n,big.mark=",")),orientation='h') %>%
+        layout(annotations=list(y=~segment,x=~percentage_members_overall,text=~paste(percentage_members_overall,"%",sep=""),showarrow=FALSE,xanchor="left",yanchor="top",xref='x',yref='y')) %>%
+        add_trace(x = ~percentage_amount_overall,y=~segment,type='bar',name='Amount', marker = list(color = 'rgb(144,201,141)'),hoverinfo='text',text=~paste("$",trimws(format(round(sum,0),big.mark=",")),sep=""),orientation='h') %>%
+        layout(annotations=list(y=~segment,x=~percentage_amount_overall,text=~paste(percentage_amount_overall,"%",sep=""),showarrow=FALSE,xanchor="left",yanchor="bottom",xref='x',yref='y')) %>%
+        layout(xaxis = list(title="",zeroline=T,showgrid=FALSE,showticklabels = FALSE),
+               yaxis = list(title="",showticklabels = F,tickfont=list(size=9),categoryoder="array",categoryarray=seg_order),margin = list(l=0,t=0,b=0))%>%
+        layout(xaxis=list(fixedrange=TRUE)) %>% layout(yaxis=list(fixedrange=TRUE)) %>% layout( hovermode="closest" )
+      # p1  
+    }
+    p1
+  })
+  
+  output$dev_table_MS3<-renderUI({
+    table_for_plot<-table_for_MS() %>% filter(parent=='MS3_45-65_blue-collared') %>%arrange(row_numbers)
+    
+    table_for_plot[c(7:9),c(15:19)]<-"NA"
+    
+    table_for_plot$segment<-factor(table_for_plot$segment, levels=table_for_plot$segment)
+    if(input$radio==TRUE)
+    {
+      for(m in 1:10)
+      {
+        assign(paste("amt_txt",m,sep=""),table_for_plot[m,"deviation_amt_par"])
+        assign(paste("mem_txt",m,sep=""),table_for_plot[m,"deviation_mem_par"])
+      }
+    }
+    if(input$radio==FALSE)
+    {
+      for(m in 1:10)
+      {
+        assign(paste("amt_txt",m,sep=""),table_for_plot[m,"deviation_amt_overall"])
+        assign(paste("mem_txt",m,sep=""),table_for_plot[m,"deviation_mem_overall"])
+      }
+    }
+    
+final_txt<-paste("tags$table(class = 'devInternalTable',tags$tr(tags$td(class = 'amount','",amt_txt1,"'),tags$td(class = 'members','",mem_txt1,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt2,"'),tags$td(class = 'members','",mem_txt2,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt3,"'),tags$td(class = 'members','",mem_txt3,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt4,"'),tags$td(class = 'members','",mem_txt4,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt5,"'),tags$td(class = 'members','",mem_txt5,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt6,"'),tags$td(class = 'members','",mem_txt6,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt7,"'),tags$td(class = 'members','",mem_txt7,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt8,"'),tags$td(class = 'members','",mem_txt8,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt9,"'),tags$td(class = 'members','",mem_txt9,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt10,"'),tags$td(class = 'members','",mem_txt10,
+                   "')))",sep="")
+    eval(parse(text=final_txt))
+    
+  })
+  
+  output$trendPlot1_MS4 <- renderPlotly({
+    
+    table_for_plot<-table_for_MS() %>% filter(parent=='MS4_45-64_white-collared') %>%arrange(desc(row_numbers))
+    
+    table_for_plot<-table_for_plot[c(1,5:10),]
+    
+    table_for_plot$segment<-factor(table_for_plot$segment, levels=table_for_plot$segment)
+    if(input$radio==TRUE)
+    {
+      p1<-plot_ly(table_for_plot,showlegend=F) %>%
+        add_trace(x=~percentage_members_parent,y= ~segment,type='bar',name="Members", marker = list(color = 'rgb(139,173,204)'),hoverinfo='text',text=~trimws(format(n,big.mark=","))) %>%
+        layout(annotations=list(y=~segment,x=~percentage_members_parent,text=~paste(percentage_members_parent,"%",sep=""),showarrow=FALSE,xanchor="left",yanchor="top",xref='x',yref='y')) %>%
+        add_trace(x = ~percentage_amount_parent,y=~segment,type='bar',name='Amount', marker = list(color = 'rgb(144,201,141)'),hoverinfo='text',text=~paste("$",trimws(format(round(sum,0),big.mark=",")),sep="")) %>%
+        layout(annotations=list(y=~segment,x=~percentage_amount_parent,text=~paste(percentage_amount_parent,"%",sep=""),showarrow=FALSE,xanchor="left",yanchor="bottom",xref='x',yref='y')) %>%
+        layout(xaxis = list(title="",zeroline=T,showgrid=FALSE,showticklabels = FALSE),
+               yaxis = list(title="",showticklabels = F,tickfont=list(size=9),categoryoder="array",categoryarray=seg_order),margin = list(l=0,t=0,b=0))%>%
+        layout(xaxis=list(fixedrange=TRUE)) %>% layout(yaxis=list(fixedrange=TRUE)) %>% layout( hovermode="closest" )
+      # p1  
+    }
+    
+    if(input$radio==FALSE)
+    {
+      p1<-plot_ly(table_for_plot,showlegend=F) %>%
+        add_trace(x=~percentage_members_overall,y= ~segment,type='bar',name="Members", marker = list(color = 'rgb(139,173,204)'),hoverinfo='text',text=~trimws(format(n,big.mark=",")),orientation='h') %>%
+        layout(annotations=list(y=~segment,x=~percentage_members_overall,text=~paste(percentage_members_overall,"%",sep=""),showarrow=FALSE,xanchor="left",yanchor="top",xref='x',yref='y')) %>%
+        add_trace(x = ~percentage_amount_overall,y=~segment,type='bar',name='Amount', marker = list(color = 'rgb(144,201,141)'),hoverinfo='text',text=~paste("$",trimws(format(round(sum,0),big.mark=",")),sep=""),orientation='h') %>%
+        layout(annotations=list(y=~segment,x=~percentage_amount_overall,text=~paste(percentage_amount_overall,"%",sep=""),showarrow=FALSE,xanchor="left",yanchor="bottom",xref='x',yref='y')) %>%
+        layout(xaxis = list(title="",zeroline=T,showgrid=FALSE,showticklabels = FALSE),
+               yaxis = list(title="",showticklabels = F,tickfont=list(size=9),categoryoder="array",categoryarray=seg_order),margin = list(l=0,t=0,b=0))%>%
+        layout(xaxis=list(fixedrange=TRUE)) %>% layout(yaxis=list(fixedrange=TRUE)) %>% layout( hovermode="closest" )
+      # p1  
+    }
+    p1
+  })
+  
+  output$dev_table_MS4<-renderUI({
+    table_for_plot<-table_for_MS() %>% filter(parent=='MS4_45-64_white-collared') %>%arrange(row_numbers)
+    
+    table_for_plot[c(7:9),c(15:19)]<-"NA"
+    
+    table_for_plot$segment<-factor(table_for_plot$segment, levels=table_for_plot$segment)
+    if(input$radio==TRUE)
+    {
+      for(m in 1:10)
+      {
+        assign(paste("amt_txt",m,sep=""),table_for_plot[m,"deviation_amt_par"])
+        assign(paste("mem_txt",m,sep=""),table_for_plot[m,"deviation_mem_par"])
+      }
+    }
+    if(input$radio==FALSE)
+    {
+      for(m in 1:10)
+      {
+        assign(paste("amt_txt",m,sep=""),table_for_plot[m,"deviation_amt_overall"])
+        assign(paste("mem_txt",m,sep=""),table_for_plot[m,"deviation_mem_overall"])
+      }
+    }
+    
+final_txt<-paste("tags$table(class = 'devInternalTable',tags$tr(tags$td(class = 'amount','",amt_txt1,"'),tags$td(class = 'members','",mem_txt1,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt2,"'),tags$td(class = 'members','",mem_txt2,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt3,"'),tags$td(class = 'members','",mem_txt3,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt4,"'),tags$td(class = 'members','",mem_txt4,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt5,"'),tags$td(class = 'members','",mem_txt5,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt6,"'),tags$td(class = 'members','",mem_txt6,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt7,"'),tags$td(class = 'members','",mem_txt7,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt8,"'),tags$td(class = 'members','",mem_txt8,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt9,"'),tags$td(class = 'members','",mem_txt9,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt10,"'),tags$td(class = 'members','",mem_txt10,
+                   "')))",sep="")
+    eval(parse(text=final_txt))
+    
+  })
+  
+  output$trendPlot1_MS5 <- renderPlotly({
+    
+    table_for_plot<-table_for_MS() %>% filter(parent=='MS5_45-64_PA') %>%arrange(desc(row_numbers))
+    
+    table_for_plot<-table_for_plot[c(1,5:10),]
+    
+    table_for_plot$segment<-factor(table_for_plot$segment, levels=table_for_plot$segment)
+    if(input$radio==TRUE)
+    {
+      p1<-plot_ly(table_for_plot,showlegend=F) %>%
+        add_trace(x=~percentage_members_parent,y= ~segment,type='bar',name="Members", marker = list(color = 'rgb(139,173,204)'),hoverinfo='text',text=~trimws(format(n,big.mark=","))) %>%
+        layout(annotations=list(y=~segment,x=~percentage_members_parent,text=~paste(percentage_members_parent,"%",sep=""),showarrow=FALSE,xanchor="left",yanchor="top",xref='x',yref='y')) %>%
+        add_trace(x = ~percentage_amount_parent,y=~segment,type='bar',name='Amount', marker = list(color = 'rgb(144,201,141)'),hoverinfo='text',text=~paste("$",trimws(format(round(sum,0),big.mark=",")),sep="")) %>%
+        layout(annotations=list(y=~segment,x=~percentage_amount_parent,text=~paste(percentage_amount_parent,"%",sep=""),showarrow=FALSE,xanchor="left",yanchor="bottom",xref='x',yref='y')) %>%
+        layout(xaxis = list(title="",zeroline=T,showgrid=FALSE,showticklabels = FALSE),
+               yaxis = list(title="",showticklabels = F,tickfont=list(size=9),categoryoder="array",categoryarray=seg_order),margin = list(l=0,t=0,b=0))%>%
+        layout(xaxis=list(fixedrange=TRUE)) %>% layout(yaxis=list(fixedrange=TRUE)) %>% layout( hovermode="closest" )
+      # p1  
+    }
+    
+    if(input$radio==FALSE)
+    {
+      p1<-plot_ly(table_for_plot,showlegend=F) %>%
+        add_trace(x=~percentage_members_overall,y= ~segment,type='bar',name="Members", marker = list(color = 'rgb(139,173,204)'),hoverinfo='text',text=~trimws(format(n,big.mark=",")),orientation='h') %>%
+        layout(annotations=list(y=~segment,x=~percentage_members_overall,text=~paste(percentage_members_overall,"%",sep=""),showarrow=FALSE,xanchor="left",yanchor="top",xref='x',yref='y')) %>%
+        add_trace(x = ~percentage_amount_overall,y=~segment,type='bar',name='Amount', marker = list(color = 'rgb(144,201,141)'),hoverinfo='text',text=~paste("$",trimws(format(round(sum,0),big.mark=",")),sep=""),orientation='h') %>%
+        layout(annotations=list(y=~segment,x=~percentage_amount_overall,text=~paste(percentage_amount_overall,"%",sep=""),showarrow=FALSE,xanchor="left",yanchor="bottom",xref='x',yref='y')) %>%
+        layout(xaxis = list(title="",zeroline=T,showgrid=FALSE,showticklabels = FALSE),
+               yaxis = list(title="",showticklabels = F,tickfont=list(size=9),categoryoder="array",categoryarray=seg_order),margin = list(l=0,t=0,b=0))%>%
+        layout(xaxis=list(fixedrange=TRUE)) %>% layout(yaxis=list(fixedrange=TRUE)) %>% layout( hovermode="closest" )
+      # p1  
+    }
+    p1
+  })
+  
+  output$dev_table_MS5<-renderUI({
+    table_for_plot<-table_for_MS() %>% filter(parent=='MS5_45-64_PA') %>%arrange(row_numbers)
+    
+    table_for_plot[c(7:9),c(15:19)]<-"NA"
+    
+    table_for_plot$segment<-factor(table_for_plot$segment, levels=table_for_plot$segment)
+    if(input$radio==TRUE)
+    {
+      for(m in 1:10)
+      {
+        assign(paste("amt_txt",m,sep=""),table_for_plot[m,"deviation_amt_par"])
+        assign(paste("mem_txt",m,sep=""),table_for_plot[m,"deviation_mem_par"])
+      }
+    }
+    if(input$radio==FALSE)
+    {
+      for(m in 1:10)
+      {
+        assign(paste("amt_txt",m,sep=""),table_for_plot[m,"deviation_amt_overall"])
+        assign(paste("mem_txt",m,sep=""),table_for_plot[m,"deviation_mem_overall"])
+      }
+    }
+    
+final_txt<-paste("tags$table(class = 'devInternalTable',tags$tr(tags$td(class = 'amount','",amt_txt1,"'),tags$td(class = 'members','",mem_txt1,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt2,"'),tags$td(class = 'members','",mem_txt2,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt3,"'),tags$td(class = 'members','",mem_txt3,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt4,"'),tags$td(class = 'members','",mem_txt4,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt5,"'),tags$td(class = 'members','",mem_txt5,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt6,"'),tags$td(class = 'members','",mem_txt6,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt7,"'),tags$td(class = 'members','",mem_txt7,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt8,"'),tags$td(class = 'members','",mem_txt8,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt9,"'),tags$td(class = 'members','",mem_txt9,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt10,"'),tags$td(class = 'members','",mem_txt10,
+                   "')))",sep="")
+    eval(parse(text=final_txt))
+    
+  })
+  
+  output$trendPlot1_MS6<-renderPlotly({
+    
+    table_for_plot<-table_for_MS() %>% filter(parent=='MS6_moreThan65') %>%arrange(desc(row_numbers))
+    
+    table_for_plot<-table_for_plot[c(1:3,5:7,10),]
+    
+    table_for_plot$segment<-factor(table_for_plot$segment, levels=table_for_plot$segment)
+    if(input$radio==TRUE)
+    {
+      p1<-plot_ly(table_for_plot,showlegend=F) %>%
+        add_trace(x=~percentage_members_parent,y= ~segment,type='bar',name="Members", marker = list(color = 'rgb(139,173,204)'),hoverinfo='text',text=~trimws(format(n,big.mark=","))) %>%
+        layout(annotations=list(y=~segment,x=~percentage_members_parent,text=~paste(percentage_members_parent,"%",sep=""),showarrow=FALSE,xanchor="left",yanchor="top",xref='x',yref='y')) %>%
+        add_trace(x = ~percentage_amount_parent,y=~segment,type='bar',name='Amount', marker = list(color = 'rgb(144,201,141)'),hoverinfo='text',text=~paste("$",trimws(format(round(sum,0),big.mark=",")),sep="")) %>%
+        layout(annotations=list(y=~segment,x=~percentage_amount_parent,text=~paste(percentage_amount_parent,"%",sep=""),showarrow=FALSE,xanchor="left",yanchor="bottom",xref='x',yref='y')) %>%
+        layout(xaxis = list(title="",zeroline=T,showgrid=FALSE,showticklabels = FALSE),
+               yaxis = list(title="",showticklabels = F,tickfont=list(size=9),categoryoder="array",categoryarray=seg_order),margin = list(l=0,t=0,b=0))%>%
+        layout(xaxis=list(fixedrange=TRUE)) %>% layout(yaxis=list(fixedrange=TRUE)) %>% layout( hovermode="closest" )
+      # p1  
+    }
+    
+    if(input$radio==FALSE)
+    {
+      p1<-plot_ly(table_for_plot,showlegend=F) %>%
+        add_trace(x=~percentage_members_overall,y= ~segment,type='bar',name="Members", marker = list(color = 'rgb(139,173,204)'),hoverinfo='text',text=~trimws(format(n,big.mark=",")),orientation='h') %>%
+        layout(annotations=list(y=~segment,x=~percentage_members_overall,text=~paste(percentage_members_overall,"%",sep=""),showarrow=FALSE,xanchor="left",yanchor="top",xref='x',yref='y')) %>%
+        add_trace(x = ~percentage_amount_overall,y=~segment,type='bar',name='Amount', marker = list(color = 'rgb(144,201,141)'),hoverinfo='text',text=~paste("$",trimws(format(round(sum,0),big.mark=",")),sep=""),orientation='h') %>%
+        layout(annotations=list(y=~segment,x=~percentage_amount_overall,text=~paste(percentage_amount_overall,"%",sep=""),showarrow=FALSE,xanchor="left",yanchor="bottom",xref='x',yref='y')) %>%
+        layout(xaxis = list(title="",zeroline=T,showgrid=FALSE,showticklabels = FALSE),
+               yaxis = list(title="",showticklabels = F,tickfont=list(size=9),categoryoder="array",categoryarray=seg_order),margin = list(l=0,t=0,b=0))%>%
+        layout(xaxis=list(fixedrange=TRUE)) %>% layout(yaxis=list(fixedrange=TRUE)) %>% layout( hovermode="closest" )
+      # p1  
+    }
+    p1
+  })
+  
+  output$dev_table_MS6<-renderUI({
+    table_for_plot<-table_for_MS() %>% filter(parent=='MS6_moreThan65') %>%arrange(row_numbers)
+    
+    table_for_plot[c(2:3,7),c(15:19)]<-"NA"
+    
+    table_for_plot$segment<-factor(table_for_plot$segment, levels=table_for_plot$segment)
+    if(input$radio==TRUE)
+    {
+      for(m in 1:10)
+      {
+        assign(paste("amt_txt",m,sep=""),table_for_plot[m,"deviation_amt_par"])
+        assign(paste("mem_txt",m,sep=""),table_for_plot[m,"deviation_mem_par"])
+      }
+    }
+    if(input$radio==FALSE)
+    {
+      for(m in 1:10)
+      {
+        assign(paste("amt_txt",m,sep=""),table_for_plot[m,"deviation_amt_overall"])
+        assign(paste("mem_txt",m,sep=""),table_for_plot[m,"deviation_mem_overall"])
+      }
+    }
+    
+final_txt<-paste("tags$table(class = 'devInternalTable',tags$tr(tags$td(class = 'amount','",amt_txt1,"'),tags$td(class = 'members','",mem_txt1,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt2,"'),tags$td(class = 'members','",mem_txt2,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt3,"'),tags$td(class = 'members','",mem_txt3,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt4,"'),tags$td(class = 'members','",mem_txt4,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt5,"'),tags$td(class = 'members','",mem_txt5,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt6,"'),tags$td(class = 'members','",mem_txt6,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt7,"'),tags$td(class = 'members','",mem_txt7,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt8,"'),tags$td(class = 'members','",mem_txt8,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt9,"'),tags$td(class = 'members','",mem_txt9,
+                   "')),tags$tr(tags$td(class = 'amount','",amt_txt10,"'),tags$td(class = 'members','",mem_txt10,
+                   "')))",sep="")
+    eval(parse(text=final_txt))
+    
+  })
+  
+  observe({
+    
+    # input<-list();input$province1<-"All";input$industry<-c("All");input$ci<-c("All");input$gender1<-c("M","F");input$age1<-c("All");input$parent1<-c("MS5_45-64_PA" ,"MS6_moreThan65")
+    
+    i1<-input$industry1;i2<-input$size1;i3<-input$sponsor1;i4<-input$ci1;i5<-input$province1;i6<-input$age1;i7<-input$gender1;i8<-input$parent1;i9<-input$segment1
+    if(is.null(input$industry1)){i1<-"All"}
+    if(is.null(input$size1)){i2<-"All"}
+    if(is.null(input$sponsor1)){i3<-"All"}
+    if(is.null(input$ci1)){i4<-"All"}
+    if(is.null(input$province1)){i5<-"All"}
+    if(is.null(input$age1)){i6<-"All"}
+    if(is.null(input$gender1)){i7<-"All"}
+    if(is.null(input$parent1)){i8<-"All"}
+    if(is.null(input$segment1)){i9<-"All"}
+    
+    
+    temp<-list();temp$industry<-i1;temp$size<-i2;temp$sponsor<-i3;temp$ci<-i4;temp$province<-i5;temp$age<-i6;temp$gender<-i7;temp$parent<-i8;temp$segment<-i9
+    
+    list_loop<-list()
+    list_loop$names<-c("list_loop$industry","list_loop$size","list_loop$sponsor","list_loop$ci","list_loop$province","list_loop$age","list_loop$gender","list_loop$parent","list_loop$segment")
+    list_loop$industry<-c("size","sponsor","ci","province","age","gender","parent","segment")
+    list_loop$size<-c("industry","sponsor","ci","province","age","gender","parent","segment")
+    list_loop$sponsor<-c("industry","size","ci","province","age","gender","parent","segment")
+    list_loop$ci<-c("industry","size","sponsor","province","age","gender","parent","segment")
+    list_loop$province<-c("industry","size","sponsor","ci","age","gender","parent","segment")
+    list_loop$age<-c("industry","size","sponsor","ci","province","gender","parent","segment")
+    list_loop$gender<-c("industry","size","sponsor","ci","province","age","parent","segment")
+    list_loop$parent<-c("industry","size","sponsor","ci","province","age","gender","segment")
+    list_loop$segment<-c("industry","size","sponsor","ci","province","age","gender","parent")
+    
+    for(i in 1:length(list_loop$names))
+    {
+      var1<-"data %>% filter("
+      list<-eval(parse(text=list_loop$names[i]))
+      name_of_col<-substr(list_loop$names[i],11,nchar(list_loop$names[i]))
+      var2<-NULL
+      var_for_ci<-NULL
+      for(j in list)
+      {
+        if( j != "ci")
+        {variable1<-NULL
+        variable1<-paste("temp$",j,sep="")
+        variable2<-eval(parse(text=variable1))
+        if(!("All" %in% variable2))
+        {var2<-paste(var2,j,"%in%","input$",j,"1,",sep="")}
+        variable1<-NULL}
+        if(j=="ci")
+        {
+          variable1<-NULL
+          variable1<-paste("temp$",j,sep="")
+          variable2<-eval(parse(text=variable1))
+          var_for_ci3<-NULL
+          if(!("All" %in% variable2))
+          {
+            
+            for(k in 1:length(variable2))
+            {
+              var_for_ci<-paste(var_for_ci,variable2[k],"|",sep="")  
+            }
+            var_for_ci2<-substr(var_for_ci,1,nchar(var_for_ci)-1)
+            var_for_ci3<-paste(" %>% filter(grepl('",var_for_ci2,"',",j,"))",sep="")
+          }
+        }
+        
+      }
+      # var2
+      if(is.null(var2)){var2<-")"}
+      # var_for_ci3
+      if(is.null(var_for_ci3)){var_for_ci3<-" %>% filter() "}
+      var3<-substr(var2,1,nchar(var2)-1)
+      # var3
+      var4<-paste(var1,var3,")",sep="")
+      # var4
+      if(name_of_col!="ci")
+      {
+        var5<-paste(var4,var_for_ci3," %>% select(",name_of_col,") %>% unique()",sep="")
+        # var5
+        assign(paste("list_for",name_of_col,sep="_"),eval(parse(text=var5)))
+      }
+      if(name_of_col=="ci")
+      {
+        var5<-paste(var4," %>% select(",name_of_col,")",sep="")
+        list_for_ci_raw<-eval(parse(text=var5))
+        list_for_ci<-unique(unlist(strsplit(as.character(list_for_ci_raw$ci), "[.]")))
+        list_for_ci<-as.data.frame(list_for_ci)
+        colnames(list_for_ci)[1]<-"ci"
+      }
+    }
+    
+    j1<-input$industry1;j2<-input$size1;j3<-input$sponsor1;j4<-input$ci1;j5<-input$province1;j6<-input$age1;j7<-input$gender1;j8<-input$parent1;j9<-input$segment1
+    if("All" %in% input$industry1){j1<-"All"}
+    if("All" %in% input$size1){j2<-"All"}
+    if("All" %in% input$sponsor1){j3<-"All"}
+    if("All" %in% input$ci1){j4<-"All"}
+    if("All" %in% input$province1){j5<-"All"}
+    if("All" %in% input$age1){j6<-"All"}
+    if("All" %in% input$gender1){j7<-"All"}
+    if("All" %in% input$parent1){j8<-"All"}
+    if("All" %in% input$segment1){j9<-"All"}
+    updateSelectizeInput(session, "industry1",
+                         choices = c("All",sort(as.character(list_for_industry$industry),decreasing = F)),
+                         selected = j1)
+    updateSelectizeInput(session,"size1",
+                         choices=c("All",sort(as.character(unique(list_for_size$size)),decreasing = F)),
+                         selected=j2)
+    updateSelectizeInput(session,"sponsor1",
+                         choices=c("All",sort(as.character(unique(list_for_sponsor$sponsor)),decreasing = F)),
+                         selected=j3)
+    updateSelectizeInput(session,"ci1",
+                         choices=c("All",sort(as.character(unique(list_for_ci$ci)),decreasing = F)),
+                         selected=j4)
+    updateSelectizeInput(session,"province1",
+                         choices=c("All",sort(as.character(unique(list_for_province$province)),decreasing = F)),
+                         selected=j5)
+    updateSelectizeInput(session,"age1",
+                         choices=c("All",sort(as.character(unique(list_for_age$age)),decreasing = F)),
+                         selected=j6)
+    updateSelectizeInput(session,"gender1",
+                         choices=c("All",sort(as.character(unique(list_for_gender$gender)),decreasing = F)),
+                         selected=j7)
+    updateSelectizeInput(session,"parent1",
+                         choices=c("All",sort(as.character(unique(list_for_parent$parent)),decreasing = F)),
+                         selected=j8)
+    updateSelectizeInput(session,"segment1",
+                         choices=c("All",sort(as.character(unique(list_for_segment$segment)),decreasing = F)),
+                         selected=j9)
+    
+  })
+  
+  observeEvent(input$reset1, {
+    updateSelectizeInput(session, "industry1",
+                         choices=c("All",sort(as.character(unique(data$industry)),decreasing = F)),
+                         selected = NULL)
+    updateSelectizeInput(session,"size1",
+                         choices=c("All",sort(as.character(unique(data$size)),decreasing = F)),
+                         selected=NULL)
+    updateSelectizeInput(session,"sponsor1",
+                         choices=c("All",sort(as.character(unique(data$sponsor)),decreasing = F)),
+                         selected=NULL)
+    updateSelectizeInput(session,"ci1",
+                         choices=c("All",sort(as.character(unique(unlist(strsplit(as.character(data$ci), "[.]")))),decreasing = F)),
+                         selected=NULL)
+    updateSelectizeInput(session,"province1",
+                         choices=c("All",sort(as.character(unique(data$province)),decreasing = F)),
+                         selected=NULL)
+    updateSelectizeInput(session, "age1",
+                         choices=c("All",sort(as.character(unique(data$age)),decreasing = F)),
+                         selected = NULL)
+    updateSelectizeInput(session,"gender1",
+                         choices=c("All",sort(as.character(unique(data$gender)),decreasing = F)),
+                         selected=NULL)
+    updateSelectizeInput(session, "parent1",
+                         choices=c("All",sort(as.character(unique(data$parent)),decreasing = F)),
+                         selected = NULL)
+    updateSelectizeInput(session,"segment1",
+                         choices=c("All",sort(as.character(unique(data$segment)),decreasing = F)),
+                         selected=NULL)
+  })
+  
+  observeEvent(input$submit,{
+    
+    i1<-input$industry;i2<-input$size;i3<-input$sponsor;i4<-input$ci;i5<-input$province
+    if(is.null(input$industry)){i1<-"All"}
+    if(is.null(input$size)){i2<-"All"}
+    if(is.null(input$sponsor)){i3<-"All"}
+    if(is.null(input$ci)){i4<-"All"}
+    if(is.null(input$province)){i5<-"All"}
+    
+    temp<-list();temp$industry<-i1;temp$size<-i2;temp$sponsor<-i3;temp$ci<-i4;temp$province<-i5
+    
+    list_loop<-list()
+    list_loop$names<-c("list_loop$industry","list_loop$size","list_loop$sponsor","list_loop$ci","list_loop$province")
+    list_loop$industry<-c("size","sponsor","ci","province")
+    list_loop$size<-c("industry","sponsor","ci","province")
+    list_loop$sponsor<-c("industry","size","ci","province")
+    list_loop$ci<-c("industry","size","sponsor","province")
+    list_loop$province<-c("industry","size","sponsor","ci")
+    
+    for(i in 1:length(list_loop$names))
+    {
+      
+      var1<-"data %>% filter("
+      list<-eval(parse(text=list_loop$names[i]))
+      name_of_col<-substr(list_loop$names[i],11,nchar(list_loop$names[i]))
+      var2<-NULL
+      var_for_ci<-NULL
+      for(j in list)
+      {
+        if( j != "ci")
+        {variable1<-NULL
+        variable1<-paste("temp$",j,sep="")
+        variable2<-eval(parse(text=variable1))
+        if(!("All" %in% variable2))
+        {var2<-paste(var2,j,"%in%","input$",j,",",sep="")}
+        variable1<-NULL}
+        if(j=="ci")
+        {
+          variable1<-NULL
+          variable1<-paste("temp$",j,sep="")
+          variable2<-eval(parse(text=variable1))
+          var_for_ci3<-NULL
+          if(!("All" %in% variable2))
+          {
+            
+            for(k in 1:length(variable2))
+            {
+              var_for_ci<-paste(var_for_ci,variable2[k],"|",sep="")  
+            }
+            var_for_ci2<-substr(var_for_ci,1,nchar(var_for_ci)-1)
+            var_for_ci3<-paste(" %>% filter(grepl('",var_for_ci2,"',",j,"))",sep="")
+          }
+        }
+        
+      }
+      # var2
+      if(is.null(var2)){var2<-")"}
+      # var_for_ci3
+      if(is.null(var_for_ci3)){var_for_ci3<-" %>% filter() "}
+      var3<-substr(var2,1,nchar(var2)-1)
+      # var3
+      var4<-paste(var1,var3,")",sep="")
+      # var4
+      if(name_of_col!="ci")
+      {
+        var5<-paste(var4,var_for_ci3," %>% select(",name_of_col,") %>% unique()",sep="")
+        # var5
+        assign(paste("list_for",name_of_col,sep="_"),eval(parse(text=var5)))
+      }
+      if(name_of_col=="ci")
+      {
+        var5<-paste(var4," %>% select(",name_of_col,")",sep="")
+        list_for_ci_raw<-eval(parse(text=var5))
+        list_for_ci<-unique(unlist(strsplit(as.character(list_for_ci_raw$ci), "[.]")))
+        list_for_ci<-as.data.frame(list_for_ci)
+        colnames(list_for_ci)[1]<-"ci"
+      }
+    }
+    
+    j1<-input$industry;j2<-input$size;j3<-input$sponsor;j4<-input$ci;j5<-input$province
+    if("All" %in% input$industry){j1<-"All"}
+    if("All" %in% input$size){j2<-"All"}
+    if("All" %in% input$sponsor){j3<-"All"}
+    if("All" %in% input$ci){j4<-"All"}
+    if("All" %in% input$province){j5<-"All"}
+    updateSelectizeInput(session, "industry1",
+                         choices = c("All",sort(as.character(list_for_industry$industry),decreasing = F)),
+                         selected = j1)
+    updateSelectizeInput(session,"size1",
+                         choices=c("All",sort(as.character(unique(list_for_size$size)),decreasing = F)),
+                         selected=j2)
+    updateSelectizeInput(session,"sponsor1",
+                         choices=c("All",sort(as.character(unique(list_for_sponsor$sponsor)),decreasing = F)),
+                         selected=j3)
+    updateSelectizeInput(session,"ci1",
+                         choices=c("All",sort(as.character(unique(list_for_ci$ci)),decreasing = F)),
+                         selected=j4)
+    updateSelectizeInput(session,"province1",
+                         choices=c("All",sort(as.character(unique(list_for_province$province)),decreasing = F)),
+                         selected=j5)
+    updateSelectizeInput(session, "age1",
+                         choices=c("All",sort(as.character(unique(data$age)),decreasing = F)),
+                         selected = NULL)
+    updateSelectizeInput(session,"gender1",
+                         choices=c("All",sort(as.character(unique(data$gender)),decreasing = F)),
+                         selected=NULL)
+    updateSelectizeInput(session, "parent1",
+                         choices=c("All",sort(as.character(unique(data$parent)),decreasing = F)),
+                         selected = NULL)
+    updateSelectizeInput(session,"segment1",
+                         choices=c("All",sort(as.character(unique(data$segment)),decreasing = F)),
+                         selected=NULL)
+  })
+  
+  # observeEvent(input$submit1,{
+  #   # input<-list();input$parent1<-c("MS5_45-64_PA")
+  #   i1<-input$industry1;i2<-input$size1;i3<-input$sponsor1;i4<-input$ci1;i5<-input$province1;i6<-input$age1;i7<-input$gender1;i8<-input$parent1;i9<-input$segment1
+  #   if(is.null(input$industry1)){i1<-"All"}
+  #   if(is.null(input$size1)){i2<-"All"}
+  #   if(is.null(input$sponsor1)){i3<-"All"}
+  #   if(is.null(input$ci1)){i4<-"All"}
+  #   if(is.null(input$province1)){i5<-"All"}
+  #   if(is.null(input$age1)){i6<-"All"}
+  #   if(is.null(input$gender1)){i7<-"All"}
+  #   if(is.null(input$parent1)){i8<-"All"}
+  #   if(is.null(input$segment1)){i9<-"All"}
+  #   
+  #   
+  #   temp<-list();temp$industry<-i1;temp$size<-i2;temp$sponsor<-i3;temp$ci<-i4;temp$province<-i5;temp$age<-i6;temp$gender<-i7;temp$parent<-i8;temp$segment<-i9
+  #   
+  #   list_loop<-list()
+  #   list_loop$names<-c("list_loop$industry","list_loop$size","list_loop$sponsor","list_loop$ci","list_loop$province","list_loop$age","list_loop$gender","list_loop$parent","list_loop$segment")
+  #   list_loop$industry<-c("size","sponsor","ci","province","age","gender","parent","segment")
+  #   list_loop$size<-c("industry","sponsor","ci","province","age","gender","parent","segment")
+  #   list_loop$sponsor<-c("industry","size","ci","province","age","gender","parent","segment")
+  #   list_loop$ci<-c("industry","size","sponsor","province","age","gender","parent","segment")
+  #   list_loop$province<-c("industry","size","sponsor","ci","age","gender","parent","segment")
+  #   list_loop$age<-c("industry","size","sponsor","ci","province","gender","parent","segment")
+  #   list_loop$gender<-c("industry","size","sponsor","ci","province","age","parent","segment")
+  #   list_loop$parent<-c("industry","size","sponsor","ci","province","age","gender","segment")
+  #   list_loop$segment<-c("industry","size","sponsor","ci","province","age","gender","parent")
+  #   
+  #   for(i in 1:length(list_loop$names))
+  #   {
+  #     var1<-"data %>% filter("
+  #     list<-eval(parse(text=list_loop$names[i]))
+  #     name_of_col<-substr(list_loop$names[i],11,nchar(list_loop$names[i]))
+  #     var2<-NULL
+  #     var_for_ci<-NULL
+  #     for(j in list)
+  #     {
+  #       if( j != "ci")
+  #       {variable1<-NULL
+  #       variable1<-paste("temp$",j,sep="")
+  #       variable2<-eval(parse(text=variable1))
+  #       if(!("All" %in% variable2))
+  #       {var2<-paste(var2,j,"%in%","input$",j,"1,",sep="")}
+  #       variable1<-NULL}
+  #       if(j=="ci")
+  #       {
+  #         variable1<-NULL
+  #         variable1<-paste("temp$",j,sep="")
+  #         variable2<-eval(parse(text=variable1))
+  #         var_for_ci3<-NULL
+  #         if(!("All" %in% variable2))
+  #         {
+  #           
+  #           for(k in 1:length(variable2))
+  #           {
+  #             var_for_ci<-paste(var_for_ci,variable2[k],"|",sep="")  
+  #           }
+  #           var_for_ci2<-substr(var_for_ci,1,nchar(var_for_ci)-1)
+  #           var_for_ci3<-paste(" %>% filter(grepl('",var_for_ci2,"',",j,"))",sep="")
+  #         }
+  #       }
+  #       
+  #     }
+  #     # var2
+  #     if(is.null(var2)){var2<-")"}
+  #     # var_for_ci3
+  #     if(is.null(var_for_ci3)){var_for_ci3<-" %>% filter() "}
+  #     var3<-substr(var2,1,nchar(var2)-1)
+  #     # var3
+  #     var4<-paste(var1,var3,")",sep="")
+  #     # var4
+  #     if(name_of_col!="ci")
+  #     {
+  #       var5<-paste(var4,var_for_ci3," %>% select(",name_of_col,") %>% unique()",sep="")
+  #       # var5
+  #       assign(paste("list_for",name_of_col,sep="_"),eval(parse(text=var5)))
+  #     }
+  #     if(name_of_col=="ci")
+  #     {
+  #       var5<-paste(var4," %>% select(",name_of_col,")",sep="")
+  #       list_for_ci_raw<-eval(parse(text=var5))
+  #       list_for_ci<-unique(unlist(strsplit(as.character(list_for_ci_raw$ci), "[.]")))
+  #       list_for_ci<-as.data.frame(list_for_ci)
+  #       colnames(list_for_ci)[1]<-"ci"
+  #     }
+  #   }
+  #   
+  #   j1<-input$industry1;j2<-input$size1;j3<-input$sponsor1;j4<-input$ci1;j5<-input$province1;j6<-input$age1;j7<-input$gender1;j8<-input$parent1;j9<-input$segment1
+  #   if("All" %in% input$industry1){j1<-"All"}
+  #   if("All" %in% input$size1){j2<-"All"}
+  #   if("All" %in% input$sponsor1){j3<-"All"}
+  #   if("All" %in% input$ci1){j4<-"All"}
+  #   if("All" %in% input$province1){j5<-"All"}
+  #   if("All" %in% input$age1){j6<-"All"}
+  #   if("All" %in% input$gender1){j7<-"All"}
+  #   if("All" %in% input$parent1){j8<-"All"}
+  #   if("All" %in% input$segment1){j9<-"All"}
+  #   updateSelectizeInput(session, "industry",
+  #                        choices = c("All",sort(as.character(list_for_industry$industry),decreasing = F)),
+  #                        selected = j1)
+  #   updateSelectizeInput(session,"size",
+  #                        choices=c("All",sort(as.character(unique(list_for_size$size)),decreasing = F)),
+  #                        selected=j2)
+  #   updateSelectizeInput(session,"sponsor",
+  #                        choices=c("All",sort(as.character(unique(list_for_sponsor$sponsor)),decreasing = F)),
+  #                        selected=j3)
+  #   updateSelectizeInput(session,"ci",
+  #                        choices=c("All",sort(as.character(unique(list_for_ci$ci)),decreasing = F)),
+  #                        selected=j4)
+  #   updateSelectizeInput(session,"province",
+  #                        choices=c("All",sort(as.character(unique(list_for_province$province)),decreasing = F)),
+  #                        selected=j5)
+  # 
+  # })
+  
+  
+  
+  data_fil2<-eventReactive(input$submit1,{
+    
+    # input<-list();input$industry1<-c("Services");input$ci1<-c("Acne","Birth Control");input$province1<-c("ON");input$gender1<-c("M","F");
+    
+    i1<-input$industry1;i2<-input$size1;i3<-input$sponsor1;i4<-input$ci1;i5<-input$province1;i6<-input$age1;i7<-input$gender1;i8<-input$parent1;i9<-input$segment1
+    if(is.null(input$industry1)){i1<-"All"}
+    if(is.null(input$size1)){i2<-"All"}
+    if(is.null(input$sponsor1)){i3<-"All"}
+    if(is.null(input$ci1)){i4<-"All"}
+    if(is.null(input$province1)){i5<-"All"}
+    if(is.null(input$age1)){i6<-"All"}
+    if(is.null(input$gender1)){i7<-"All"}
+    if(is.null(input$parent1)){i8<-"All"}
+    if(is.null(input$segment1)){i9<-"All"}
+    
+    fil_for_industry<-NULL
+    if(!('All' %in% i1))
+    {fil_for_industry<-"industry %in% input$industry1"}
+    
+    fil_for_size<-NULL
+    if(!('All' %in% i2))
+    {fil_for_size<-"size %in% input$size1"}
+    
+    fil_for_sponsor<-NULL
+    if(!('All' %in% i3))
+    {fil_for_sponsor<-"sponsor %in% input$sponsor1"}
+    
+    # input<-list()
+    # input$ci<-c("Acne","Allergy")
+    fil_for_ci<-NULL
+    fil_for_ci3<-NULL
+    if(!('All' %in% i4))
+    {
+      for(k in 1:length(input$ci))
+      {
+        fil_for_ci<-paste(fil_for_ci,input$ci[k],"|",sep="")  
+      }
+      fil_for_ci2<-substr(fil_for_ci,1,nchar(fil_for_ci)-1)
+      fil_for_ci3<-paste(" grepl('",fil_for_ci2,"',ci)",sep="")
+      
+    }
+    
+    fil_for_province<-NULL
+    if(!('All' %in% i5))
+    {fil_for_province<-"province %in% input$province1"}
+    
+    fil_for_age<-NULL
+    if(!('All' %in% i6))
+    {fil_for_age<-"age %in% input$age1"}
+    
+    fil_for_gender<-NULL
+    if(!('All' %in% i7))
+    {fil_for_gender<-"gender %in% input$gender1"}
+    
+    fil_for_parent<-NULL
+    if(!('All' %in% i8))
+    {fil_for_parent<-"parent %in% input$parent1"}
+    
+    fil_for_segment<-NULL
+    if(!('All' %in% i9))
+    {fil_for_segment<-"segment %in% input$segment1"}
+    
+    
+    all_fil<-paste("data %>% filter(",fil_for_industry,") %>% filter(",fil_for_size,") %>% filter (",
+                   fil_for_sponsor,") %>% filter(",fil_for_ci3,") %>% filter(", fil_for_province,") %>% filter (",
+                   fil_for_age,") %>% filter (",fil_for_gender,") %>% filter (",fil_for_parent,") %>% filter (",
+                   fil_for_segment,")")
+    # data_fil2<-eval(parse(text=all_fil))
+    eval(parse(text=all_fil))
+  })
+  
+  data_fil2_only_parent_segment<-eventReactive(input$submit1,{
+    
+    # input<-list();input$province1<-"All";input$industry1<-c("Mining","Services");input$ci1<-c("Enzymes","Cancer","Birth Control");input$gender1<-c("M","F");input$age1<-c("MORE THAN 65");input$parent1<-c("MS1_18-44_M" ,"MS2_18-44_F" ,"MS3_45-65_blue-collared" ,"MS4_45-64_white-collared" ,"MS5_45-64_PA" ,"MS6_moreThan65")
+    
+    i1<-input$parent1;i2<-input$segment1;
+    if(is.null(input$parent1)){i1<-"All"}
+    if(is.null(input$segment1)){i2<-"All"}
+    
+    
+    fil_for_parent<-NULL
+    if(!('All' %in% i1))
+    {fil_for_parent<-"parent %in% input$parent1"}
+    
+    fil_for_segment<-NULL
+    if(!('All' %in% i2))
+    {fil_for_segment<-"segment %in% input$segment1"}
+    
+    all_fil<-paste("data %>% filter(",fil_for_parent,") %>% filter(",fil_for_segment,")")
+    # data_fil2_only_parent_segment<-eval(parse(text=all_fil))
+    eval(parse(text=all_fil))
+  })
+  
+  output$text5 <- renderText({
+    if(values1$default==0)
+    {
+      if(values$default==0)
+      {
+        format(nrow(data),big.mark = ",",scientific = F)
+      }
+      else
+      {
+        format(nrow(data_fil1()),big.mark = ",",scientific = F)
+      }
+      
+    }
+    else
+    {
+      format(nrow(data_fil2()),big.mark = ",",scientific = F)
+    }
+  })
+  
+  output$text6 <- renderText({
+    if(values1$default==0)
+    {
+      if(values$default==0)
+      {
+        total_num_of_member_of_complete_dataset<-nrow(data)
+        v<-(nrow(data))/total_num_of_member_of_complete_dataset*100
+        v<-format(round(v,digits = 0),big.mark=",",scientific = F)
+        paste(v,"%",sep="")
+      }
+      else
+      {
+        total_num_of_member_of_complete_dataset<-nrow(data)
+        v<-(nrow(data_fil1()))/total_num_of_member_of_complete_dataset*100
+        v<-format(round(v,digits = 0),big.mark=",",scientific = F)
+        paste(v,"%",sep="")
+      }
+      
+    }
+    else
+    {
+      total_num_of_member_of_complete_dataset<-nrow(data)
+      v<-(nrow(data_fil2()))/total_num_of_member_of_complete_dataset*100
+      v<-format(round(v,digits = 0),big.mark=",",scientific = F)
+      paste(v,"%")
+    }
+  })
+  
+  output$text7<-renderText({
+    if(values1$default==0)
+    {
+      if(values$default==0)
+      {
+        sum<-sum(data$total_amount_submitted)
+        sum<-format(round(sum,0),big.mark = ",",scientific=F)
+        paste("$",sum,sep="")
+      }
+      else
+      {
+        sum<-sum(data_fil1()$total_amount_submitted)
+        sum<-format(round(sum,0),big.mark = ",",scientific=F)
+        paste("$",sum,sep="")
+      }
+      
+    }
+    else
+    {
+      sum<-sum(data_fil2()$total_amount_submitted)
+      sum<-format(round(sum,0),big.mark = ",",scientific=F)
+      paste("$",sum,sep="")
+    }
+  })
+  
+  output$text8<-renderText({
+    if(values1$default==0)
+    {
+      if(values$default==0)
+      { 
+        total_amount_submitted_of_complete_dataset<-sum(data$total_amount_submitted)
+        sum<-sum(data$total_amount_submitted)/(total_amount_submitted_of_complete_dataset)*100
+        sum<-format(round(sum,0),big.mark = ",",scientific=F)
+        paste(sum,"%",sep="")
+      }
+      else
+      {
+        total_amount_submitted_of_complete_dataset<-sum(data$total_amount_submitted)
+        sum<-sum(data_fil1()$total_amount_submitted)/(total_amount_submitted_of_complete_dataset)*100
+        sum<-format(round(sum,0),big.mark = ",",scientific=F)
+        paste(sum,"%",sep="")
+      }
+    }
+    else
+    {
+      total_amount_submitted_of_complete_dataset<-sum(data$total_amount_submitted)
+      sum<-sum(data_fil2()$total_amount_submitted)/(total_amount_submitted_of_complete_dataset)*100
+      sum<-format(round(sum,0),big.mark = ",",scientific=F)
+      paste(sum,"%",sep="")
+    }
+  })
+  
+  output$Claim_type_combination<-renderUI({
+    if(values1$default==0)
+    {
+      if(values$default==0){
+        claim_type_table<-data %>% group_by(claim_type_comb) %>% summarize(freq=n())  
+      }
+      else{
+        claim_type_table<-data_fil1() %>% group_by(claim_type_comb) %>% summarize(freq=n())
+      }
+    }
+    else
+    {
+      claim_type_table<-data_fil2() %>% group_by(claim_type_comb) %>% summarize(freq=n())
+    }
+    
+    
+    total_members<-sum(claim_type_table$freq)
+    claim_type_table1<- claim_type_table %>% mutate(percentage_distri=round(freq/total_members*100,0)) %>% arrange(desc(freq)) %>% 
+      filter(claim_type_comb !="No Claims")
+    
+    
+    temp<-0
+    for (l in 1:5)
+    {
+      temp1<-max(length(unlist(strsplit(as.character( claim_type_table1$claim_type_comb[l]), "[.]"))))
+      if (temp1>temp)
+      {temp<-temp1}
+    }
+    
+    cell_width<-80/(temp)
+    
+    var6<-""
+    for(i in 1:5)
+    {
+      
+      temp_list<-unlist(strsplit(as.character(claim_type_table1$claim_type_comb[i]), "[.]"))
+      var1<-"tags$tr(class='claimTypeTableRow',"
+      var2<-"tags$td(class='"
+      var4<-""
+      var_for_num<-paste("tags$td(class='percent',style='width:10%','",claim_type_table1$percentage_distri[i],"%'),",sep="")      
+      for (j in 1:temp)
+      {
+        if(!is.na(temp_list[j]))
+        {
+          var3<-paste(var2,gsub(" ", "", temp_list[j], fixed = TRUE),"',style='width:",cell_width,"%','",temp_list[j],"')",sep="")
+        }
+        else
+        {
+          var3<-paste(var2,"empty',style='width:",cell_width,"%','","')",sep="")
+        }
+        var4<-paste(var4,var3,sep=",")
+      }
+      var5<-paste(var1,var_for_num,substr(var4,2,nchar(var4)),",tags$td(class='empty',style='width:10%','')",sep="")
+      var6<-paste(var6,var5,"),",sep="")
+    }
+    final_var<-paste("tags$table(id='claimtypeTypeTable',
+                     tags$tr(tags$th('% Members'),
+                     tags$th(colspan=",temp,",'Claim type Combination'),
+                     tags$th('')),",
+                     substr(var6,1,nchar(var6)-1),")")
+    
+    eval(parse(text=final_var))
+    
+  })
+  
+  output$trendPlot2 <- renderPlotly({
+    if(values1$default==0)
+    {
+      if(values$default==0){
+        table_for_plot1<-data %>% select(11:21)  
+      }
+      else{
+        table_for_plot1<-data_fil1() %>% select(11:21)
+      }
+    }
+    else
+    {
+      table_for_plot1<-data_fil2() %>% select(11:21)  
+    }
+    amount<-table_for_plot1 %>% colSums();amount<-as.data.frame(amount);amount$col<-rownames(amount)
+    members<-sapply(table_for_plot1,function(x){sum(x>0,na.rm=T)});members<-as.data.frame(members);members$col<-rownames(members)
+    
+    final_table_for_plot<-merge(x=amount,y=members,by = "col",all.x=T)
+    rownames(final_table_for_plot)<-final_table_for_plot$col
+    final_table_for_plot<-final_table_for_plot[c("disability_claims_amount","out_of_country_claims_amount","hospital_claims_amount","chronic_rare_claims_amount","dental_claims_amount","medical_services_claims_amount","physical_health_claims_amount","mental_health_claims_amount","chronic_common_claims_amount","vision_claims_amount","acute_claims_amount"),]
+    
+    if(values1$default==0)
+    {
+      if(values$default==0){
+        temp_table1<-data %>% select(total_amount_submitted)
+      }
+      else{
+        temp_table1<-data_fil1() %>% select(total_amount_submitted)
+      }
+    }
+    else
+    {
+      temp_table1<-data_fil2() %>% select(total_amount_submitted)
+    }
+    total_amount<-temp_table1 %>% colSums();
+    total_members<-sapply(temp_table1,function(x){sum(x>0,na.rm=T)});
+    
+    if(total_amount!=0)
+    {final_table_for_plot<-final_table_for_plot %>% mutate(percentage_amount=round(amount/total_amount*100,0),percentage_members=round(members/total_members*100,0))}
+    if(total_amount==0)
+    {final_table_for_plot<-final_table_for_plot %>% mutate(percentage_amount=round(amount,0),percentage_members=round(members,0))} 
+    
+    if(values1$default==0)
+    {
+      if(values$default==0){
+        table_for_deviation<-data %>% select(11:21)
+      }
+      else{
+        table_for_deviation<-data %>% select(11:21)
+      }
+    }
+    else
+    {
+      table_for_deviation<-data_fil2_only_parent_segment() %>% select(11:21)  
+    }
+    amount_parent_segment<-table_for_deviation %>% colSums();amount_parent_segment<-as.data.frame(amount_parent_segment);amount_parent_segment$col<-rownames(amount_parent_segment)
+    members_parent_segment<-sapply(table_for_deviation,function(x){sum(x>0,na.rm=T)});members_parent_segment<-as.data.frame(members_parent_segment);members_parent_segment$col<-rownames(members_parent_segment)
+    
+    
+    final_table_parent_segment<-merge(x=amount_parent_segment,y=members_parent_segment,by="col",all.x=T)
+    rownames(final_table_parent_segment)<-final_table_parent_segment$col
+    final_table_parent_segment<-final_table_parent_segment[c("disability_claims_amount","out_of_country_claims_amount","hospital_claims_amount","chronic_rare_claims_amount","dental_claims_amount","medical_services_claims_amount","physical_health_claims_amount","mental_health_claims_amount","chronic_common_claims_amount","vision_claims_amount","acute_claims_amount"),]
+    
+    if(values1$default==0)
+    {
+      if(values$default==0){
+        temp_table2<-data %>% select(total_amount_submitted)
+      }
+      else{
+        temp_table2<-data %>% select(total_amount_submitted)  
+      }
+    }
+    else
+    {
+      temp_table2<-data_fil2_only_parent_segment() %>% select(total_amount_submitted)  
+    }
+    total_amount_parent_segm<-temp_table2 %>% colSums();
+    total_members_parent_segm<-sapply(temp_table2,function(x){sum(x>0,na.rm=T)})
+    
+    if(total_amount_parent_segm!=0)
+    {final_table_parent_segment<-final_table_parent_segment %>% mutate(percent_amt_par_seg=round(amount_parent_segment/total_amount_parent_segm*100,0),percent_mem_par_seg=round(members_parent_segment/total_members_parent_segm*100,0))}
+    if(total_amount_parent_segm==0)
+    {final_table_parent_segment<-final_table_parent_segment %>% mutate(percent_amt_par_seg=round(amount_parent_segment,0),percent_mem_par_seg=round(members_parent_segment,0))}
+    
+    final_table_for_plot1<-merge(x=final_table_for_plot,y=final_table_parent_segment,by="col",all.x = T)
+    final_table_for_plot1<-final_table_for_plot1 %>% mutate(var_amount=percentage_amount-percent_amt_par_seg,var_mem=percentage_members-percent_mem_par_seg)
+    
+    rownames(final_table_for_plot1)<-final_table_for_plot1$col
+    
+    lut<-c("disability_claims_amount"="Disability",
+           "out_of_country_claims_amount"="Out of Country",
+           "hospital_claims_amount"="Hospital",
+           "chronic_rare_claims_amount"="Chronic Rare",
+           "dental_claims_amount"="Dental",
+           "medical_services_claims_amount"="Medical Services",
+           "physical_health_claims_amount"="Physical Health",
+           "mental_health_claims_amount"="Mental Health",
+           "chronic_common_claims_amount"="Chronic Common",
+           "vision_claims_amount"="Vision",
+           "acute_claims_amount"="Acute" )
+    
+    final_table_for_plot1$col1<-lut[final_table_for_plot1$col]
+    final_table_for_plot1<-final_table_for_plot1[c("disability_claims_amount","out_of_country_claims_amount","hospital_claims_amount","chronic_rare_claims_amount","dental_claims_amount","medical_services_claims_amount","physical_health_claims_amount","mental_health_claims_amount","chronic_common_claims_amount","vision_claims_amount","acute_claims_amount"),]
+    final_table_for_plot1$col1 <- factor(final_table_for_plot1$col1, levels = final_table_for_plot1$col1)
+    
+    range_max<-max(final_table_for_plot1$percentage_amount,final_table_for_plot1$percentage_members,final_table_for_plot1$percent_amt_par_seg,final_table_for_plot1$percent_mem_par_seg)
+    
+    if(input$radio2==TRUE)
+    {
+      p1<-plot_ly(final_table_for_plot1) %>%
+        add_trace(y=~percentage_amount,x=~col1,type="bar",text=~paste("Claim Amount: $",trimws(format(round(amount,0),big.mark=",")),"<br>","Percentage Claim Amount: ",percentage_amount,"%","<br>","Population $ Avg: ",percent_amt_par_seg,"%","<br>","Deviation: ",var_amount,"%",sep=""),hoverinfo='text',name='Amount',marker=list(color='rgb(144,201,141)'))%>%
+        # layout(annotations=list(y=~percentage_amount,x=~col1,text=~paste(percentage_amount,"%",sep=""),showarrow=FALSE,xanchor="right",yanchor="bottom")) %>%
+        add_trace(y=~percentage_members,x=~col1,type='bar',text=~paste("#Members: ",trimws(format(round(members,0),big.mark=",")),"<br>","Percentage Members: ",percentage_members,"%","<br>","Population Avg: ",percent_mem_par_seg,"%","<br>","Deviation: ",var_mem,"%",sep=""),hoverinfo='text',name='Members',marker=list(color='rgb(139,173,204)'))%>%
+        # layout(annotations=list(y=~percentage_members,x=~col1,text=~paste(percentage_members,"%",sep=""),showarrow=FALSE,xanchor="left",yanchor="bottom"))%>%
+        add_trace(x=~col1,y=0,type='bar',hoverinfo='none',yaxis='y2',name='',marker=list(color='rgb(0,0,0)'),opacity=0.31)%>%
+        add_trace(x=~col1,y=0,type='bar',hoverinfo='none',yaxis='y2',name='',marker=list(color='rgb(0,0,0)'),opacity=0.31)%>%
+        add_trace(x=~col1,y=~percent_amt_par_seg,type='bar',hoverinfo='text',text=~paste("Population $ Avg: ",percent_amt_par_seg,"%",sep=''),yaxis='y2',name='',marker=list(color='rgb(0,0,0)'),opacity=0.31)%>%
+        add_trace(x=~col1,y=0,type='bar',hoverinfo='none',yaxis='y2',name='',marker=list(color='rgb(0,0,0)'),opacity=0.31)%>%
+        add_trace(x=~col1,y=0,type='bar',hoverinfo='none',yaxis='y2',name='',marker=list(color='rgb(0,0,0)'),opacity=0.31)%>%
+        add_trace(x=~col1,y=0,type='bar',hoverinfo='none',yaxis='y2',name='',marker=list(color='rgb(0,0,0)'),opacity=0.31)%>%
+        add_trace(x=~col1,y=0,type='bar',hoverinfo='none',yaxis='y2',name='',marker=list(color='rgb(0,0,0)'),opacity=0.31)%>%
+        add_trace(x=~col1,y=~percent_mem_par_seg,type='bar',hoverinfo='text',text=~paste("Population Avg: ",percent_mem_par_seg,"%",sep=''),yaxis='y2',name='',marker=list(color='rgb(0,0,0)'),opacity=0.31)%>%
+        add_trace(x=~col1,y=0,type='bar',hoverinfo='none',yaxis='y2',name='',marker=list(color='rgb(0,0,0)'),opacity=0.31)%>%
+        add_trace(x=~col1,y=0,type='bar',hoverinfo='none',yaxis='y2',name='',marker=list(color='rgb(0,0,0)'),opacity=0.31)%>%  
+        layout(showlegend=F,xaxis = list(title="",zeroline = FALSE,showgrid=FALSE,showline = T,showticklabels = T,tickangle=0,tickfont=list(family='helvetica',size=9)),
+               yaxis = list(side='left',title="",zeroline = T,showline = F,showticklabels = T,showgrid = T,range=c(0,range_max)),
+               yaxis2 = list(side = 'right',overlaying = "y",  title = '',  zeroline = T,showgrid = F,showticklabels=FALSE,range=c(0,range_max)),margin = list(l=30,r=2))%>%
+        layout(xaxis=list(fixedrange=TRUE)) %>% layout(yaxis=list(fixedrange=TRUE))%>% layout(yaxis2=list(fixedrange=TRUE))
+      # p1
+    }
+    if(input$radio2==FALSE)
+    {
+      p1<-plot_ly(final_table_for_plot1) %>%
+        add_trace(y=~percentage_members,x=~col1,type='bar',text=~paste("#Members: ",trimws(format(round(members,0),big.mark=",")),"<br>","Percentage #Members: ",percentage_members,"%","<br>","Deviation: ",var_mem,"%",sep=""),hoverinfo='text',name='Members',marker=list(color='rgb(139,173,204)'))%>%
+        # layout(annotations=list(y=~percentage_members,x=~col1,text=~paste(percentage_members,"%",sep=""),showarrow=FALSE,xanchor="right",yanchor="bottom"))%>%
+        add_trace(y=~percentage_amount,x=~col1,type="bar",text=~paste("Claim Amount: $",trimws(format(round(amount,0),big.mark=",")),"<br>","Percentage Claim Amount: ",percentage_amount,"%","<br>","Deviation: ",var_amount,"%",sep=""),hoverinfo='text',name='Amount',marker=list(color='rgb(144,201,141)'))%>%
+        # layout(annotations=list(y=~percentage_amount,x=~col1,text=~paste(percentage_amount,"%",sep=""),showarrow=FALSE,xanchor="left",yanchor="bottom")) %>%
+        add_trace(x=~col1,y=0,type='bar',hoverinfo='none',yaxis='y2',name='',marker=list(color='rgb(0,0,0)'),opacity=0.31)%>%
+        add_trace(x=~col1,y=0,type='bar',hoverinfo='none',yaxis='y2',name='',marker=list(color='rgb(0,0,0)'),opacity=0.31)%>%
+        add_trace(x=~col1,y=~percent_mem_par_seg,type='bar',hoverinfo='text',text=~paste("Population Avg: ",percent_mem_par_seg,"%",sep=''),yaxis='y2',name='',marker=list(color='rgb(0,0,0)'),opacity=0.31)%>%
+        add_trace(x=~col1,y=0,type='bar',hoverinfo='none',yaxis='y2',name='',marker=list(color='rgb(0,0,0)'),opacity=0.31)%>%
+        add_trace(x=~col1,y=0,type='bar',hoverinfo='none',yaxis='y2',name='',marker=list(color='rgb(0,0,0)'),opacity=0.31)%>%  
+        add_trace(x=~col1,y=0,type='bar',hoverinfo='none',yaxis='y2',name='',marker=list(color='rgb(0,0,0)'),opacity=0.31)%>%
+        add_trace(x=~col1,y=0,type='bar',hoverinfo='none',yaxis='y2',name='',marker=list(color='rgb(0,0,0)'),opacity=0.31)%>%
+        add_trace(x=~col1,y=~percent_amt_par_seg,type='bar',hoverinfo='text',text=~paste("Population $ Avg: ",percent_amt_par_seg,"%",sep=''),yaxis='y2',name='',marker=list(color='rgb(0,0,0)'),opacity=0.31)%>%
+        add_trace(x=~col1,y=0,type='bar',hoverinfo='none',yaxis='y2',name='',marker=list(color='rgb(0,0,0)'),opacity=0.31)%>%
+        add_trace(x=~col1,y=0,type='bar',hoverinfo='none',yaxis='y2',name='',marker=list(color='rgb(0,0,0)'),opacity=0.31)%>%
+        layout(showlegend=F,xaxis = list(title="",zeroline = FALSE,showgrid=FALSE,showline = T,showticklabels = T,tickangle=0,tickfont=list(family='helvetica',size=9)),
+               yaxis = list(side='left',title="",zeroline = F,showline = F,showticklabels = T,showgrid = T,range=c(0,range_max)),
+               yaxis2 = list(side = 'right',overlaying = "y",  title = '',  zeroline = F,showgrid = F,showticklabels=FALSE,range=c(0,range_max)),margin = list(l=30,r=2))%>%
+        layout(xaxis=list(fixedrange=TRUE)) %>% layout(yaxis=list(fixedrange=TRUE))%>% layout(yaxis2=list(fixedrange=TRUE))
+      # p1
+    }
+    p1
+  })
+  
+  output$trendPlot3 <- renderPlotly({
+    
+    if(values1$default==0)
+    {
+      if(values$default==0){
+        table_for_plot_ci1<-data %>% select(26:100)
+      }
+      else{
+        table_for_plot_ci1<-data_fil1() %>% select(26:100)   
+      }
+    }
+    else
+    {
+      table_for_plot_ci1<-data_fil2() %>% select(26:100)
+    }
+    
+    amount_ci<-table_for_plot_ci1 %>% colSums(na.rm=T);amount_ci<-as.data.frame(amount_ci);amount_ci$col<-rownames(amount_ci)
+    members_ci<-sapply(table_for_plot_ci1,function(x){sum(x>0,na.rm=T)});members_ci<-as.data.frame(members_ci);members_ci$col<-rownames(members_ci)
+    
+    final_table_for_ci<-merge(x=amount_ci,y=members_ci,by='col',all=T)
+    total_amount_ci<-sum(final_table_for_ci$amount_ci)
+    
+    if(values1$default==0)
+    {
+      if(values$default==0){
+        final_table_for_ci<-final_table_for_ci %>% mutate(percentage_amount_ci=round(amount_ci/total_amount_ci*100,0),percentage_members_ci=round(members_ci/nrow(data)*100,0)) 
+      }
+      else{
+        final_table_for_ci<-final_table_for_ci %>% mutate(percentage_amount_ci=round(amount_ci/total_amount_ci*100,0),percentage_members_ci=round(members_ci/nrow(data_fil1())*100,0))   
+      }
+    }
+    else
+    {
+      final_table_for_ci<-final_table_for_ci %>% mutate(percentage_amount_ci=round(amount_ci/total_amount_ci*100,0),percentage_members_ci=round(members_ci/nrow(data_fil2())*100,0))
+    }
+    
+    if(input$radio2==TRUE)
+    {final_table_for_ci<-final_table_for_ci %>% arrange(desc(amount_ci))}
+    
+    if(input$radio2==FALSE)
+    {final_table_for_ci<-final_table_for_ci %>% arrange(desc(members_ci))}
+    
+    final_table_for_ci$col<-as.character(final_table_for_ci$col)
+    final_table_for_ci$col<-factor(final_table_for_ci$col, levels=final_table_for_ci$col)
+    
+    final_table_for_ci1<-final_table_for_ci[c(1:10),]
+    
+    if(values1$default==0)
+    {
+      if(values$default==0){
+        table_for_plot_ci1_par_seg<-data %>% select(26:100)
+      }
+      else{
+        table_for_plot_ci1_par_seg<-data %>% select(26:100)
+      }
+    }
+    else
+    {
+      table_for_plot_ci1_par_seg<-data_fil2_only_parent_segment() %>% select(26:100)
+    }
+    
+    amount_ci_par_seg<-table_for_plot_ci1_par_seg %>% colSums(na.rm=T);amount_ci_par_seg<-as.data.frame(amount_ci_par_seg);amount_ci_par_seg$col<-rownames(amount_ci_par_seg)
+    members_ci_par_seg<-sapply(table_for_plot_ci1_par_seg,function(x){sum(x>0,na.rm=T)});members_ci_par_seg<-as.data.frame(members_ci_par_seg);members_ci_par_seg$col<-rownames(members_ci_par_seg)
+    
+    fin_table_for_ci_par_seg<-merge(x=amount_ci_par_seg,y=members_ci_par_seg,by='col',all=T)
+    totl_amt_ci_par_seg<-sum(fin_table_for_ci_par_seg$amount_ci_par_seg)
+    
+    if(values1$default==0)
+    {
+      if(values$default==0){
+        fin_table_for_ci_par_seg<-fin_table_for_ci_par_seg %>% mutate(percnt_amt_ci_par_seg=round(amount_ci_par_seg/totl_amt_ci_par_seg*100,0),percnt_mem_ci_par_seg=round(members_ci_par_seg/nrow(data)*100,0))  
+      }
+      else{
+        fin_table_for_ci_par_seg<-fin_table_for_ci_par_seg %>% mutate(percnt_amt_ci_par_seg=round(amount_ci_par_seg/totl_amt_ci_par_seg*100,0),percnt_mem_ci_par_seg=round(members_ci_par_seg/nrow(data)*100,0))  
+      }
+      
+    }
+    else
+    {
+      fin_table_for_ci_par_seg<-fin_table_for_ci_par_seg %>% mutate(percnt_amt_ci_par_seg=round(amount_ci_par_seg/totl_amt_ci_par_seg*100,0),percnt_mem_ci_par_seg=round(members_ci_par_seg/nrow(data_fil2_only_parent_segment())*100,0))
+    }
+    
+    final_table_for_ci2<-merge(x=final_table_for_ci1,y=fin_table_for_ci_par_seg,by='col',all.x=T)
+    
+    range_max<-max(final_table_for_ci2$percentage_amount_ci,final_table_for_ci2$percentage_members_ci,final_table_for_ci2$percnt_amt_ci_par_seg,final_table_for_ci2$percnt_mem_ci_par_seg)
+    
+    if(input$radio2==TRUE)
+    {
+      final_table_for_ci2<-final_table_for_ci2 %>% arrange(desc(amount_ci))
+      final_table_for_ci2$col<-factor(final_table_for_ci2$col, levels=final_table_for_ci2$col)
+      
+      p1<-plot_ly(final_table_for_ci2) %>%
+        add_trace(y=~percentage_amount_ci,x=~col,type="bar",text=~paste("Claim Amount: $",trimws(format(round(amount_ci,0),big.mark=",",scientific=F)),"<br>","Deviation: ",(percentage_amount_ci-percnt_amt_ci_par_seg),"%",sep=""),hoverinfo='text',name='Amount',marker=list(color='rgb(144,201,141)'))%>%
+        layout(annotations=list(y=~percentage_amount_ci,x=~col,text=~paste(percentage_amount_ci,"%",sep=""),showarrow=FALSE,xanchor="right",yanchor="bottom")) %>%
+        add_trace(y=~percentage_members_ci,x=~col,type='bar',text=~paste("#Members: ",trimws(format(round(members_ci,0),big.mark=",",scientific=F)),"<br>","Deviation: ",(percentage_members_ci-percnt_mem_ci_par_seg),"%",sep=""),hoverinfo='text',name='Members',marker=list(color='rgb(139,173,204)'))%>%
+        layout(annotations=list(y=~percentage_members_ci,x=~col,text=~paste(percentage_members_ci,"%",sep=""),showarrow=FALSE,xanchor="left",yanchor="bottom"))%>%
+        add_trace(x=~col,y=0,type='bar',hoverinfo='none',yaxis='y2',name='',marker=list(color='rgb(0,0,0)'),opacity=0.31)%>%
+        add_trace(x=~col,y=0,type='bar',hoverinfo='none',yaxis='y2',name='',marker=list(color='rgb(0,0,0)'),opacity=0.31)%>%
+        add_trace(x=~col,y=~percnt_amt_ci_par_seg,type='bar',hoverinfo='text',text=~paste("Population $ Avg: ",percnt_amt_ci_par_seg,"%",sep=""),yaxis='y2',name='',marker=list(color='rgb(0,0,0)'),opacity=0.31)%>%
+        add_trace(x=~col,y=0,type='bar',hoverinfo='none',yaxis='y2',name='',marker=list(color='rgb(0,0,0)'),opacity=0.31)%>%
+        add_trace(x=~col,y=0,type='bar',hoverinfo='none',yaxis='y2',name='',marker=list(color='rgb(0,0,0)'),opacity=0.31)%>%
+        add_trace(x=~col,y=0,type='bar',hoverinfo='none',yaxis='y2',name='',marker=list(color='rgb(0,0,0)'),opacity=0.31)%>%
+        add_trace(x=~col,y=0,type='bar',hoverinfo='none',yaxis='y2',name='',marker=list(color='rgb(0,0,0)'),opacity=0.31)%>%
+        add_trace(x=~col,y=~percnt_mem_ci_par_seg,type='bar',hoverinfo='text',text=~paste("Population Avg: ",percnt_mem_ci_par_seg,"%",sep=""),yaxis='y2',name='',marker=list(color='rgb(0,0,0)'),opacity=0.31)%>%
+        add_trace(x=~col,y=0,type='bar',hoverinfo='none',yaxis='y2',name='',marker=list(color='rgb(0,0,0)'),opacity=0.31)%>%
+        add_trace(x=~col,y=0,type='bar',hoverinfo='none',yaxis='y2',name='',marker=list(color='rgb(0,0,0)'),opacity=0.31)%>%  
+        layout(showlegend=F,xaxis = list(title="",zeroline = FALSE,showgrid=FALSE,showline = T,showticklabels = T,tickangle=0,tickfont=list(family='helvetica',size=9)),
+               yaxis = list(side='left',title="",zeroline = F,showline = F,showticklabels = F,showgrid = F,range=c(0,range_max)),
+               yaxis2 = list(side = 'right',overlaying = "y",  title = '',  zeroline = F,showgrid = F,showticklabels=FALSE,range=c(0,range_max)),margin = list(l=2,r=2))%>%
+        layout(xaxis=list(fixedrange=TRUE)) %>% layout(yaxis=list(fixedrange=TRUE))%>% layout(yaxis2=list(fixedrange=TRUE))
+      # p1
+    }
+    
+    if(input$radio2==FALSE)
+    {
+      final_table_for_ci2<-final_table_for_ci2 %>% arrange(desc(members_ci))
+      final_table_for_ci2$col<-factor(final_table_for_ci2$col, levels=final_table_for_ci2$col)
+      
+      p1<-plot_ly(final_table_for_ci2) %>%
+        add_trace(y=~percentage_members_ci,x=~col,type='bar',text=~paste("#Members: ",trimws(format(round(members_ci,0),big.mark=",")),"<br>","Deviation: ",(percentage_members_ci-percnt_mem_ci_par_seg),"%",sep=""),hoverinfo='text',name='Members',marker=list(color='rgb(139,173,204)'))%>%
+        layout(annotations=list(y=~percentage_members_ci,x=~col,text=~paste(percentage_members_ci,"%",sep=""),showarrow=FALSE,xanchor="right",yanchor="bottom"))%>%
+        add_trace(y=~percentage_amount_ci,x=~col,type="bar",text=~paste("Claim Amount: $",trimws(format(round(amount_ci,0),big.mark=",")),"<br>","Deviation: ",(percentage_amount_ci-percnt_amt_ci_par_seg),"%",sep=""),hoverinfo='text',name='Amount',marker=list(color='rgb(144,201,141)'))%>%
+        layout(annotations=list(y=~percentage_amount_ci,x=~col,text=~paste(percentage_amount_ci,"%",sep=""),showarrow=FALSE,xanchor="left",yanchor="bottom")) %>%
+        add_trace(x=~col,y=0,type='bar',hoverinfo='none',yaxis='y2',name='',marker=list(color='rgb(0,0,0)'),opacity=0.31)%>%
+        add_trace(x=~col,y=0,type='bar',hoverinfo='none',yaxis='y2',name='',marker=list(color='rgb(0,0,0)'),opacity=0.31)%>%
+        add_trace(x=~col,y=~percnt_mem_ci_par_seg,type='bar',hoverinfo='text',text=~paste("Population Avg: ",percnt_mem_ci_par_seg,"%",sep=''),yaxis='y2',name='',marker=list(color='rgb(0,0,0)'),opacity=0.31)%>%
+        add_trace(x=~col,y=0,type='bar',hoverinfo='none',yaxis='y2',name='',marker=list(color='rgb(0,0,0)'),opacity=0.31)%>%
+        add_trace(x=~col,y=0,type='bar',hoverinfo='none',yaxis='y2',name='',marker=list(color='rgb(0,0,0)'),opacity=0.31)%>%  
+        add_trace(x=~col,y=0,type='bar',hoverinfo='none',yaxis='y2',name='',marker=list(color='rgb(0,0,0)'),opacity=0.31)%>%
+        add_trace(x=~col,y=0,type='bar',hoverinfo='none',yaxis='y2',name='',marker=list(color='rgb(0,0,0)'),opacity=0.31)%>%
+        add_trace(x=~col,y=~percnt_amt_ci_par_seg,type='bar',hoverinfo='text',text=~paste("Population $ Avg: ",percnt_amt_ci_par_seg,"%",sep=''),yaxis='y2',name='',marker=list(color='rgb(0,0,0)'),opacity=0.31)%>%
+        add_trace(x=~col,y=0,type='bar',hoverinfo='none',yaxis='y2',name='',marker=list(color='rgb(0,0,0)'),opacity=0.31)%>%
+        add_trace(x=~col,y=0,type='bar',hoverinfo='none',yaxis='y2',name='',marker=list(color='rgb(0,0,0)'),opacity=0.31)%>%
+        layout(showlegend=F,xaxis = list(title="",zeroline = FALSE,showgrid=F,showline = T,showticklabels = T,tickangle=0,tickfont=list(family='helvetica',size=9)),
+               yaxis = list(side='left',title="",zeroline = F,showline = F,showticklabels = F,showgrid = T,range=c(0,range_max)),
+               yaxis2 = list(side = 'right',overlaying = "y",  title = '',  zeroline = F,showgrid = F,showticklabels=FALSE,range=c(0,range_max)),margin = list(l=2,r=2))%>%
+        layout(xaxis=list(fixedrange=TRUE)) %>% layout(yaxis=list(fixedrange=TRUE))%>% layout(yaxis2=list(fixedrange=TRUE))
+      # p1
+    }
+    
+    p1
+  })
+  
+  output$report <- downloadHandler(
+    # For PDF output, change this to "report.pdf"
+    filename = "report.html",
+    content = function(file) {
+      # Copy the report file to a temporary directory before processing it, in
+      # case we don't have write permissions to the current working dir (which
+      # can happen when deployed).
+      tempReport <- file.path(tempdir(), "report.Rmd")
+      file.copy("report.Rmd", tempReport, overwrite = TRUE)
+      
+      # Set up parameters to pass to Rmd document
+      params <- list(n = input$slider)
+      
+      # Knit the document, passing in the `params` list, and eval it in a
+      # child of the global environment (this isolates the code in the document
+      # from the code in this app).
+      rmarkdown::render(tempReport, output_file = file,
+                        params = params,
+                        envir = new.env(parent = globalenv())
+      )
+    }
+  )
+  
+})
