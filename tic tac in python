@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[104]:
+# In[21]:
 
 
 def print_matrix(a):
@@ -9,7 +9,7 @@ def print_matrix(a):
         print a[i] 
 
 
-# In[105]:
+# In[22]:
 
 
 def fill_matrix(a,r,c,x,z,s,flag):
@@ -22,13 +22,33 @@ def fill_matrix(a,r,c,x,z,s,flag):
     return b
 
 
-# In[106]:
+# In[23]:
 
 
 def enter_location(a,z,s,flag):
     print(z, "enter your location")
-    r=input("Enter row number: ")
-    c=input("Enter column number: ")
+    while True:
+        try:
+            r=input("Enter row number: ")
+            if r>3 or r<1:
+                print "please enter row number between 1-3"
+                continue
+        except:
+            print "please enter number only"
+            continue
+        else:
+            break
+    while True:
+        try:
+            c=input("Enter column number: ")
+            if c>3 or c<1:
+                print "please enter column number between 1-3"
+                continue
+        except:
+            print "please enter number only"
+            continue
+        else:
+            break
     if s==1: ms="x"
     else: ms="o"
     a=fill_matrix(a,r,c,ms,z,s,flag)
@@ -36,7 +56,7 @@ def enter_location(a,z,s,flag):
     
 
 
-# In[107]:
+# In[24]:
 
 
 def game_over(a,r,c,ms,z,s,flag):
@@ -71,7 +91,7 @@ def game_over(a,r,c,ms,z,s,flag):
         print "Continue playing"
 
 
-# In[108]:
+# In[25]:
 
 
 def tic_tac(name1,name2):
@@ -94,8 +114,8 @@ def tic_tac(name1,name2):
             if flag[0]==1: break
 
 
-# In[109]:
+# In[26]:
 
 
-tic_tac("g","s")
+tic_tac("sandy","garvit")
 
