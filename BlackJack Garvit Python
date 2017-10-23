@@ -63,15 +63,30 @@ class person(object):
         name=raw_input("Enter the player name:")
         self.name=name
         text2="Where do you want to sit?(Enter seat position between 1-"+str(num_of_players)+")"
-        order=input(text2)
+        while(True):
+            try:
+                order=input(text2)
+            except:
+                print("Please enter number")
+                continue
+            else:
+                break
         self.order=order
         msg="How much money does "+name+" have?"
-        money=input(msg)
+        while(True):
+            try:
+                money=input(msg)
+            except:
+                print("enter the amount in intergers")
+                continue
+            else:
+                break
         self.total_money=money
         self.current_bet=0
         self.cards_in_hand=[]
         self.not_busted=1
         self.playing=1
+        self.busted_rank=0
     
     def place_bet(self):
         bet=input("Please enter the amount you want to bet:")
@@ -90,7 +105,7 @@ class person(object):
             else:
                 pass
         else:
-            self.hit_or_stand()
+            self.hit_or_stand(cards_list)
         return hors.lower()
         
         
@@ -101,6 +116,8 @@ class person(object):
             self.total_money=self.total_money-self.current_bet
         self.current_bet=0
         self.cards_in_hand=[]
+        self.not_busted=1
+        self.busted_rank=0
         
     def player_hand(self,cards_list):
         cards_in_hand=self.cards_in_hand
@@ -141,12 +158,13 @@ class dealer(person):
         self.cards_in_hand=[]
         self.not_busted=1
         self.playing=1
+        self.busted_rank=0
     
     def place_bet(self):
         pass
     
     def hit_or_stand(self,cards_list):
-        if self.total_sum<17: hors="h"
+        if self.sum_of_cards<17: hors="h"
         else: hors="s"
         if hors.lower() in ("h","s"):
             if hors.lower()=="h":
@@ -157,9 +175,11 @@ class dealer(person):
                 
     def round_over(self,win_or_lose):
         self.cards_in_hand=[]
+        self.not_busted=1
+        self.busted_rank=0
 
 
-# In[9]:
+# In[5]:
 
 
 def print_cards(object):
@@ -182,15 +202,29 @@ def check_winner(players_object):
     l=[]
     winner=[]
     for i in players_object:
+        if i.name=="Dealer": dealer_object=i
         print i.name+"'s cards are"+str(i.cards_in_hand)
         print i.name+"'s sum of cards is "+str(i.sum_of_cards)
         d[i.name]=i.sum_of_cards
         l.append(i.sum_of_cards)
     l_new=[i for i in l if i <=21]
-    winner_val=max(l_new)
+    winner_val=[max(l_new)]
     
+    if dealer_object.busted_rank!=0:
+        winner_val=[n.sum_of_cards for n in players_object if n.busted_rank>dealer_object.busted_rank or n.busted_rank==0]
+        if len(winner_val)==0:
+            winner_val=[dealer_object.sum_of_cards]
+    
+        
+    for i in players_object:
+        if i.sum_of_cards in winner_val:
+            i.win_or_lose="win"
+        else:
+            i.win_or_lose="lose"
+        
     for i in d:
-        if d[i]==winner_val: winner.append(i)
+        if d[i] in winner_val: winner.append(i)
+            
     if len(winner)==1:
         print winner[0]+"won this round"
     else:
@@ -201,6 +235,7 @@ def check_winner(players_object):
             else:
                 winner_list=winner_list+i
         print "it is a tie between "+ winner_list
+    
     #return (winner,len(winner))
 
 def counter(time):
@@ -210,14 +245,28 @@ def counter(time):
     clear_output()
 
 
-# In[10]:
+# In[6]:
 
 
 class game_start(object):
     def __init__(num_player=1,num_deck=1):
         clear_output()
-        num_player=input("Enter number of players:")
-        num_deck=input("Enter number of decks to be used:")
+        while(True):
+            try:
+                num_player=input("Enter number of players:")
+            except:
+                print("Enter integer only")
+                continue
+            else:
+                break
+        while(True):
+            try:
+                num_deck=input("Enter number of decks to be used:")
+            except:
+                print("Enter integer only")
+                continue
+            else:
+                break
         cards=[]
         for i in range(num_deck):
             cards.extend(deck().cards())
@@ -239,6 +288,8 @@ class game_start(object):
                         print_cards(i)
                         #counter(5)
                     else:
+                        print("Dealer's turn")
+                        if j==1:print "Dealer's second card is hidden upside down"
                         i.player_hand(cards)
                         i.total_sum()
                         print_cards(i)
@@ -246,11 +297,20 @@ class game_start(object):
             
             
             h=1
+            busted_rank=1
             while(h>0):
                 h=0
                 for i in players:
-                    if i.name=="Dealer": j=i
-                    print i.name+"'s Turn"
+                    if i.name=="Dealer":
+                        j=i
+                        print i.name+"'s Turn"
+                        print "Dealer's turn over."
+                    else:
+                        print i.name+"'s Turn"
+                        print_cards(i)
+                    if i.not_busted==0:
+                        if i.name!="Dealer":
+                            print("You can't play. Already busted")
                     if i.not_busted==1:
                         r=i.hit_or_stand(cards)
                         i.total_sum()
@@ -258,32 +318,56 @@ class game_start(object):
                             print_cards(j)
                             print_cards(i)
                         check_sum(i)
+                        if i.not_busted==0:
+                            i.busted_rank=busted_rank
+                            busted_rank+=1
                         if r=="h": 
                             h+=1
                         
             check_winner(players)
             
             for i in players:
-                i.round_over("lose")
+                i.round_over(i.win_or_lose)
+                
+            interim_players=[j for j in players]    
+            for i in players:
                 if i.name!="Dealer":
                     if i.total_money==0:
-                        print i.name+", you don't have any money you can't play further"
-                        players.pop(players.index(i))
+                        print i.name+", You don't have any money you can't play further"
+                        interim_players.pop(interim_players.index(i))
                     else:
-                        answer=raw_input("do you want to play further?(y/n)")
+                        player_permission=i.name+" do you want to play further?(y/n)"
+                        while(True):
+                            answer=raw_input(player_permission)
+                            if answer.lower() in ("y","n"):
+                                break
+                            else: 
+                                print("Enter Y or N")
+                                continue
                         if answer.lower()!="y":
-                            players.pop(players.index(i))
+                            interim_players.pop(interim_players.index(i))
+            
+            players=[l for l in interim_players]
         
-        restart_game=raw_input("Do you want to restart the game all over again?(y/n)")
+        
+        restart_permission="Do you want to restart the game all over again?(y/n)"
+        
+        while(True):
+            restart_game=raw_input(restart_permission)
+            if restart_game.lower() in ("y","n"):
+                break
+            else:
+                print("Enter Y or N")
+                continue
+                
         if restart_game=="y":
             game_start()
         else:
             print "Good Bye! Have a nice day"
 
 
-# In[12]:
+# In[7]:
 
 
 print "You will get 10 sec to check your cards and the turn will be passed after 10 seconds"
 game_start()
-
