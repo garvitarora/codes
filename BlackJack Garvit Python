@@ -203,19 +203,17 @@ def check_winner(players_object):
     winner=[]
     for i in players_object:
         if i.name=="Dealer": dealer_object=i
-        print i.name+"'s cards are"+str(i.cards_in_hand)
+        print i.name+"'s cards are"+str(i.cards_in_hand)+"busted rank is"+str(i.busted_rank)
         print i.name+"'s sum of cards is "+str(i.sum_of_cards)
         d[i.name]=i.sum_of_cards
         l.append(i.sum_of_cards)
     l_new=[i for i in l if i <=21]
-    winner_val=[max(l_new)]
+    if len(l_new)!=0:
+        winner_val=[max(l_new)]
     
     if dealer_object.busted_rank!=0:
         winner_val=[n.sum_of_cards for n in players_object if n.busted_rank>dealer_object.busted_rank or n.busted_rank==0]
-        if len(winner_val)==0:
-            winner_val=[dealer_object.sum_of_cards]
-    
-        
+                
     for i in players_object:
         if i.sum_of_cards in winner_val:
             i.win_or_lose="win"
@@ -371,3 +369,4 @@ class game_start(object):
 
 print "You will get 10 sec to check your cards and the turn will be passed after 10 seconds"
 game_start()
+
