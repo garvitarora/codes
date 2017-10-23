@@ -1,0 +1,289 @@
+
+# coding: utf-8
+
+# #Milestone Project 2 - Blackjack Game
+# In this milestone project you will be creating a Complete BlackJack Card Game in Python.
+# 
+# Here are the requirements:
+# 
+# * You need to create a simple text-based [BlackJack](https://en.wikipedia.org/wiki/Blackjack) game
+# * The game needs to have one player versus an automated dealer.
+# * The player can stand or hit.
+# * The player must be able to pick their betting amount.
+# * You need to keep track of the players total money.
+# * You need to alert the player of wins, losses, or busts, etc...
+# 
+# And most importantly:
+# 
+# * **You must use OOP and classes in some portion of your game. You can not just use functions in your game. Use classes to help you define the Deck and the Player's hand. There are many right ways to do this, so explore it well!**
+# 
+# 
+# Feel free to expand this game-try including multiple players. Try adding in Double-Down and card splits! Remember to you are free to use any resources you want and as always:
+# 
+# # HAVE FUN!
+
+# In[1]:
+
+
+from IPython.display import clear_output
+from random import randint
+from time import sleep
+
+
+# In[2]:
+
+
+class deck(object):
+    def __init__(self):
+        pass
+        
+    def cards(self):
+        a=[]
+        for j in ["Spade","Diamond","Club","Heart"]:
+            for i in range(13):
+                a.append(j[0].upper()+" "+str(i+1))
+        for i in a:
+            if i[2:] in ("1","11","12","13"):
+                if i[2:] =="1":
+                    a[a.index(i)]=i[0]+" A"
+                if i[2:] =="11":
+                    a[a.index(i)]=i[0]+" J"
+                if i[2:]=="12":
+                    a[a.index(i)]=i[0]+" Q"
+                if i[2:] =="13":
+                    a[a.index(i)]=i[0]+" K"
+        return a
+
+
+# In[3]:
+
+
+class person(object):
+    def __init__(self,num_of_players):
+        name=raw_input("Enter the player name:")
+        self.name=name
+        text2="Where do you want to sit?(Enter seat position between 1-"+str(num_of_players)+")"
+        order=input(text2)
+        self.order=order
+        msg="How much money does "+name+" have?"
+        money=input(msg)
+        self.total_money=money
+        self.current_bet=0
+        self.cards_in_hand=[]
+        self.not_busted=1
+        self.playing=1
+    
+    def place_bet(self):
+        bet=input("Please enter the amount you want to bet:")
+        if bet>self.total_money:
+            print "you don't have this much money. total money left is " +str(self.total_money)
+            self.place_bet()
+        else:
+            self.current_bet=bet
+        return bet
+    
+    def hit_or_stand(self,cards_list):
+        hors=raw_input("Do you want to hit or stand. Type h or s:")
+        if hors.lower() in ("h","s"):
+            if hors.lower()=="h":
+                self.player_hand(cards_list)
+            else:
+                pass
+        else:
+            self.hit_or_stand()
+        return hors.lower()
+        
+        
+    def round_over(self,win_or_lose):
+        if win_or_lose=="win":
+            self.total_money=self.total_money+self.current_bet  #this means he wins twice the  bet money
+        else:
+            self.total_money=self.total_money-self.current_bet
+        self.current_bet=0
+        self.cards_in_hand=[]
+        
+    def player_hand(self,cards_list):
+        cards_in_hand=self.cards_in_hand
+        card_number=randint(1,len(cards_list))
+        cards_in_hand.append(cards_list.pop(card_number))
+        self.cards_in_hand=cards_in_hand
+        
+    def total_sum(self):
+        cards_in_hand=self.cards_in_hand
+        sum_of_cards=0
+        a_present=False
+        num_a_present=0
+        for i in cards_in_hand:
+            if i[2:] not in ["A","J","Q","K"]:
+                sum_of_cards=sum_of_cards+int(i[2:])
+            else:
+                if i[2:]=="A":
+                    a_present=True
+                    num_a_present+=1
+                    sum_of_cards=sum_of_cards+11
+                else:
+                    sum_of_cards=sum_of_cards+10
+        if a_present:
+            if sum_of_cards>21:
+                for i in range(num_a_present):
+                    sum_of_cards=sum_of_cards-10
+                    if sum_of_cards<21: break
+        self.sum_of_cards=sum_of_cards
+
+
+# In[4]:
+
+
+class dealer(person):
+    def __init__(self):
+        name="Dealer"
+        self.name=name
+        self.cards_in_hand=[]
+        self.not_busted=1
+        self.playing=1
+    
+    def place_bet(self):
+        pass
+    
+    def hit_or_stand(self,cards_list):
+        if self.total_sum<17: hors="h"
+        else: hors="s"
+        if hors.lower() in ("h","s"):
+            if hors.lower()=="h":
+                self.player_hand(cards_list)
+            else:
+                pass
+        return hors
+                
+    def round_over(self,win_or_lose):
+        self.cards_in_hand=[]
+
+
+# In[9]:
+
+
+def print_cards(object):
+    name=object.name
+    if name=="Dealer":
+        print "Dealers first card: "
+        print object.cards_in_hand[0]
+    else:
+        print "These are you cards: "+name
+        print object.cards_in_hand
+        print "Total sum is "+str(object.sum_of_cards)
+
+def check_sum(player_object):
+    if player_object.sum_of_cards>21:
+        print "Busted!! You can't continue this round"
+        player_object.not_busted=0
+        
+def check_winner(players_object):
+    d={}
+    l=[]
+    winner=[]
+    for i in players_object:
+        print i.name+"'s cards are"+str(i.cards_in_hand)
+        print i.name+"'s sum of cards is "+str(i.sum_of_cards)
+        d[i.name]=i.sum_of_cards
+        l.append(i.sum_of_cards)
+    l_new=[i for i in l if i <=21]
+    winner_val=max(l_new)
+    
+    for i in d:
+        if d[i]==winner_val: winner.append(i)
+    if len(winner)==1:
+        print winner[0]+"won this round"
+    else:
+        winner_list=""
+        for i in winner:
+            if winner.index(i)+1!=len(winner):
+                winner_list=winner_list+i+" and "
+            else:
+                winner_list=winner_list+i
+        print "it is a tie between "+ winner_list
+    #return (winner,len(winner))
+
+def counter(time):
+    for i in range(time):
+        print time-i
+        sleep(1)
+    clear_output()
+
+
+# In[10]:
+
+
+class game_start(object):
+    def __init__(num_player=1,num_deck=1):
+        clear_output()
+        num_player=input("Enter number of players:")
+        num_deck=input("Enter number of decks to be used:")
+        cards=[]
+        for i in range(num_deck):
+            cards.extend(deck().cards())
+        players=[dealer()]
+        for i in range(num_player):
+            players.append(person(num_player))
+            
+        while(len(players)>1):
+            bet_money_on_table=0
+            for j in range(2):
+                for i in players:
+                    if i.name!="Dealer":
+                        print i.name+"'s turn"
+                        if j==0:
+                            i_bet=i.place_bet()
+                            bet_money_on_table=bet_money_on_table+i_bet
+                        i.player_hand(cards)
+                        i.total_sum()
+                        print_cards(i)
+                        #counter(5)
+                    else:
+                        i.player_hand(cards)
+                        i.total_sum()
+                        print_cards(i)
+                        #counter(5)
+            
+            
+            h=1
+            while(h>0):
+                h=0
+                for i in players:
+                    if i.name=="Dealer": j=i
+                    print i.name+"'s Turn"
+                    if i.not_busted==1:
+                        r=i.hit_or_stand(cards)
+                        i.total_sum()
+                        if i.name!="Dealer":
+                            print_cards(j)
+                            print_cards(i)
+                        check_sum(i)
+                        if r=="h": 
+                            h+=1
+                        
+            check_winner(players)
+            
+            for i in players:
+                i.round_over("lose")
+                if i.name!="Dealer":
+                    if i.total_money==0:
+                        print i.name+", you don't have any money you can't play further"
+                        players.pop(players.index(i))
+                    else:
+                        answer=raw_input("do you want to play further?(y/n)")
+                        if answer.lower()!="y":
+                            players.pop(players.index(i))
+        
+        restart_game=raw_input("Do you want to restart the game all over again?(y/n)")
+        if restart_game=="y":
+            game_start()
+        else:
+            print "Good Bye! Have a nice day"
+
+
+# In[12]:
+
+
+print "You will get 10 sec to check your cards and the turn will be passed after 10 seconds"
+game_start()
+
